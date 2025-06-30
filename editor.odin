@@ -368,7 +368,10 @@ editor_draw :: proc(editor: ^Editor) {
 			token_index += 1
 		} 
 		token := tokens[token_index]
-		char_color := get_color_for_token(token.kind)
+		char_color := rl.Color { 10, 140, 255, 255 }
+		if editor.highlight { 
+			char_color = get_color_for_token(token.kind)
+		}
 
 		// draw text
 		char_cstring := fmt.ctprint(rune(char))
