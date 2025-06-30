@@ -398,14 +398,12 @@ editor_draw :: proc(editor: ^Editor) {
 	// draw line numbers
 	if editor.line_numbers {		
 		for i in first_line..=last_line {
-			if editor.line_numbers {					
-				number_color := rl.Color { 255, 255, 255, 50 }
-				if i == editor_get_cursor_line(editor) {
-					number_color = rl.Color { 255, 255, 255, 150 }
-				}
-				pos := rl.Vector2 { editor.rect.x + 10, editor.rect.y + f32(i) * 40 + scroll^ }
-				rl.DrawTextEx(font^, fmt.ctprint(i + 1), pos, 40, 0, number_color)
+			number_color := rl.Color { 255, 255, 255, 50 }
+			if i == editor_get_cursor_line(editor) {
+				number_color = rl.Color { 255, 255, 255, 150 }
 			}
+			pos := rl.Vector2 { editor.rect.x + 10, editor.rect.y + f32(i) * 40 + scroll^ }
+			rl.DrawTextEx(font^, fmt.ctprint(i + 1), pos, 40, 0, number_color)
 		}
 	}
 
