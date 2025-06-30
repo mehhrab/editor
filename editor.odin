@@ -5,6 +5,7 @@ import fmt "core:fmt"
 import "core:strings"
 import "core:slice"
 import "core:odin/tokenizer"
+import "core:math"
 
 Editor :: struct {
 	app: ^App,
@@ -330,81 +331,84 @@ editor_draw :: proc(editor: ^Editor) {
 	if len(tokens) == 0 {
 		append(&tokens, tokenizer.Token {})
 	}
-	
-	if rl.IsKeyPressed(.F2) {
-		fmt.printfln("{}", tokens)
+
+	// calculate visible lines
+	first_line := int(math.floor(-(scroll^) / 40))
+	last_line := int(math.ceil((editor.rect.height - (scroll^)) / 40))
+	// HACK: for single line editors
+	if len(buffer.line_ranges) == 1 {
+		last_line = 0
 	}
+	// HACK: idk brah
+	last_line = clamp(last_line, 0, len(buffer.line_ranges) - 1)
+	first_line_range := buffer.line_ranges[first_line]
+	last_line_range := buffer.line_ranges[last_line]
 
 	line_num_w := f32(100)
 	if editor.line_numbers == false {
 		line_num_w = 0
 	}
-	// {
-	// 	// hightlight line
-	// 	line := editor_get_cursor_line(editor)
-	// 	rl.DrawRectangleRec({line_num_w, f32(line) * 40 + scroll^, f32(rl.GetScreenWidth()), 40}, { 255, 255, 255, 15 })
-	// }
+
+	rl.BeginScissorMode(
+		i32(editor.rect.x), 
+		i32(editor.rect.y), 
+		i32(editor.rect.width), 
+		i32(editor.rect.height))
 	
-	rl.BeginScissorMode(i32(editor.rect.x), i32(editor.rect.y), i32(editor.rect.width), i32(editor.rect.height))
-	{
-		current_token := 0
-		char_x, char_y := editor.rect.x + line_num_w, editor.rect.y + scroll^
-		line := 1
-		for char, i in buffer.content {
-			if current_token < len(tokens) - 1 && tokens[current_token + 1].pos.offset <= i {
-				current_token += 1
-			}
-			token := tokens[current_token]
-			char_cstring := fmt.ctprint(rune(char))
-			char_w := rl.MeasureTextEx(font^, char_cstring, 40, 0)[0]
-			if char == '\n' {
-				char_w = rl.MeasureTextEx(font^, " ", 40, 0)[0]
-			} else if char == '\t' {
-				char_w = rl.MeasureTextEx(font^, "    ", 40, 0)[0]
-			}
-			cursor_range := cursor_to_range(&editor.cursor)
-			if cursor_range.start <= i && i < cursor_range.end {
-				rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, { 255, 255, 255, 30 })
-			} 
-			color := rl.Color { 10, 140, 255, 255 }
-			if editor.highlight {
-				if token.kind == .Ident {
-					color = rl.SKYBLUE
-					color.b -= 20
+	char_x := editor.rect.x + line_num_w
+	char_y := f32(40 * first_line) + editor.rect.y + scroll^
+	line := first_line
+	token_index := 0
+	for char, i in buffer.content[first_line_range.start:last_line_range.end] {		
+		char_index := i + first_line_range.start 
+
+		// highlighting
+		// should only loop the first time to catch up
+		for token_index < len(tokens) - 1 && tokens[token_index + 1].pos.offset <= char_index {
+			token_index += 1
+		} 
+		token := tokens[token_index]
+		char_color := get_color_for_token(token.kind)
+
+		// draw text
+		char_cstring := fmt.ctprint(rune(char))
+		char_w := rl.MeasureTextEx(font^, char_cstring, 40, 0)[0]
+		if char == '\n' {
+			char_w = rl.MeasureTextEx(font^, " ", 40, 0)[0]
+		}
+		rl.DrawTextEx(font^, char_cstring, { char_x, char_y }, 40, 0, char_color)
+		
+		// draw selection
+		cursor_range := cursor_to_range(&editor.cursor)
+		if cursor_range.start <= char_index && char_index < cursor_range.end {
+			rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, { 255, 255, 255, 30 })
+		} 
+
+		if char == '\n' {
+			char_x = editor.rect.x + line_num_w
+			char_y += 40
+			line += 1
+			continue
+		}
+		else {
+			char_x += char_w
+		}
+	}
+	
+	// draw line numbers
+	if editor.line_numbers {		
+		for i in first_line..=last_line {
+			if editor.line_numbers {					
+				number_color := rl.Color { 255, 255, 255, 50 }
+				if i == editor_get_cursor_line(editor) {
+					number_color = rl.Color { 255, 255, 255, 150 }
 				}
-				else if token.kind == .String {
-					color = rl.GREEN
-				}
-				else if token.kind == .Comment {
-					color = { 10, 120, 100, 255 }
-				}
-				else if token.kind == .Float || token.kind == .Integer {
-					color = { 170, 100, 220, 255 }
-				}
-				else if token.kind == .Pointer || token.kind == .And {
-					color = { 100, 100, 220, 255 }
-				}
-			}
-			rl.DrawTextEx(font^, char_cstring, { char_x, char_y }, 40, 0, color)
-			if char == '\n' {
-				if editor.line_numbers {					
-					number_color := rl.Color { 255, 255, 255, 50 }
-					if line - 1 == editor_get_cursor_line(editor) {
-						number_color = rl.Color { 255, 255, 255, 150 }
-					}
-					pos := rl.Vector2 { editor.rect.x + 10, editor.rect.y + f32(line - 1) * 40 + scroll^ }
-					rl.DrawTextEx(font^, fmt.ctprint(line), pos, 40, 0, number_color)
-				}
-				char_x = editor.rect.x + line_num_w
-				char_y += 40
-				line += 1
-				continue
-			}
-			else {
-				char_x += char_w
+				pos := rl.Vector2 { editor.rect.x + 10, editor.rect.y + f32(i) * 40 + scroll^ }
+				rl.DrawTextEx(font^, fmt.ctprint(i + 1), pos, 40, 0, number_color)
 			}
 		}
 	}
+
 	{
 		// draw cursor
 		line := editor_get_cursor_line(editor)
@@ -422,4 +426,25 @@ editor_draw :: proc(editor: ^Editor) {
 		rl.DrawRectangleRec({ cursor_x, cursor_y, 2, 40 }, rl.SKYBLUE)
 	}
 	rl.EndScissorMode()
+}
+
+get_color_for_token :: proc(kind: tokenizer.Token_Kind) -> rl.Color {
+	color := rl.Color { 10, 140, 255, 255 }
+	if kind == .Ident {
+		color = rl.SKYBLUE
+		color.b -= 20
+	}
+	else if kind == .String {
+		color = rl.GREEN
+	}
+	else if kind == .Comment {
+		color = { 10, 120, 100, 255 }
+	}
+	else if kind == .Float || kind == .Integer {
+		color = { 170, 100, 220, 255 }
+	}
+	else if kind == .Pointer || kind == .And {
+		color = { 100, 100, 220, 255 }
+	}
+	return color
 }
