@@ -182,10 +182,6 @@ col_real_to_visual :: proc(editor: ^Editor, i: int) {
 }
 
 editor_input :: proc(editor: ^Editor) {
-	key_pressed_or_repeated :: proc(key: rl.KeyboardKey) -> bool {
-		return rl.IsKeyPressed(key) || rl.IsKeyPressedRepeat(key) 
-	}
-
 	buffer := &editor.buffer
 
 	if rl.IsKeyPressed(.F1) {

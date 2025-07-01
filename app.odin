@@ -150,3 +150,7 @@ app_input :: proc(app: ^App) -> bool {
 	}
 	return handled
 }
+
+key_pressed_or_repeated :: proc(key: rl.KeyboardKey) -> bool {
+	return rl.IsKeyPressed(key) || rl.IsKeyPressedRepeat(key) 
+}
