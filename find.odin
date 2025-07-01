@@ -13,6 +13,17 @@ Find :: struct {
 	cursor_before_search: Cursor,
 }
 
+find_init :: proc(find: ^Find, app: ^App, editor: ^Editor) {
+	find.editor = editor
+	buffer: Buffer; buffer_init(&buffer, "")
+	editor_init(&find.input, app, &buffer)
+}
+
+find_deinit :: proc(find: ^Find) {
+	editor_deinit(&find.input)
+	delete(find.matches)
+}
+
 find_matches :: proc(find: ^Find) {
 	editor := find.editor
 	

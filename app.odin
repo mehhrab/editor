@@ -61,9 +61,8 @@ app_main :: proc() {
 	app.editors[0].highlight = true
 	app.editors[0].line_numbers = true
 
-	app.find.editor = &app.editors[0]
-	find_buffer: Buffer; buffer_init(&find_buffer, "")
-	editor_init(&app.find.input, &app, &find_buffer)
+	find_init(&app.find, &app, &app.editors[0])
+	defer find_deinit(&app.find)
 
 	current_dir, err := os.get_executable_directory(context.allocator)
 	file_picker_init(&app.file_picker, &app, current_dir)
