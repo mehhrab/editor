@@ -52,6 +52,9 @@ file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.alloca
 			file_picker.visible = false
 		}
 	}
+	else if rl.IsKeyPressed(.ESCAPE) {
+		file_picker.visible = false
+	}
 	else if rl.IsKeyPressed(.BACKSPACE) {}
 	else if len(file_picker.app.chars_pressed) != 0 {}
 	else {
