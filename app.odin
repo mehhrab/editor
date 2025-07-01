@@ -5,12 +5,14 @@ import fmt "core:fmt"
 import "core:strings"
 import "core:mem"
 import "core:slice"
+import os "core:os/os2"
 
 App :: struct {
 	font: rl.Font,
 	font_size: f32,
 	editors: [dynamic]Editor,
 	find: Find,
+	file_picker: File_Picker,
 	chars_pressed: [dynamic]rune,
 }
 
@@ -56,18 +58,41 @@ app_main :: proc() {
 	find_buffer: Buffer; buffer_init(&find_buffer, "")
 	editor_init(&app.find.input, &app, &find_buffer)
 
+	current_dir, err := os.get_executable_directory(context.allocator)
+	file_picker_init(&app.file_picker, &app, current_dir)
+
 	for rl.WindowShouldClose() == false {
 		char := rl.GetCharPressed();
 		for char != 0 {
 			append(&app.chars_pressed, char)
 			char = rl.GetCharPressed();
 		}
+
 		screen_rect := rl.Rectangle { 0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()) }
 		app.editors[0].rect = { 0, 0, screen_rect.width, screen_rect.height - 40 }
 		app.find.input.rect = { 0, screen_rect.height - 40, screen_rect.width, 40 }
+		
+		file_picker_rect := rl.Rectangle { 0, 0, 700, 400 }
+		file_picker_rect.x = screen_rect.width / 2 - file_picker_rect.width / 2
+		file_picker_rect.y = screen_rect.height / 2 - file_picker_rect.height / 2
+		file_picker_set_rect(&app.file_picker, file_picker_rect)
+
 		if app_input(&app) == false {
 			if app.find.visible {
 				find_input(&app.find)
+			}
+			else if app.file_picker.visible {
+				selected := file_picker_input(&app.file_picker)
+				if selected != "" {
+					text, err := os.read_entire_file(selected, context.allocator)
+					assert(err == nil)
+
+					app.editors[0] = {}
+					buffer: Buffer; buffer_init(&buffer, string(text))
+					editor_init(&app.editors[0], &app, &buffer)
+					app.editors[0].highlight = true
+					app.editors[0].line_numbers = true
+				}
 			}
 			else {
 				editor_input(&app.editors[0])
@@ -88,6 +113,9 @@ app_main :: proc() {
 			rl.DrawRectangleRec(rect, rl.SKYBLUE)
 			rl.DrawTextEx(app.font, "app.odin", { rect.x, rect.y }, 40, 0, rl.BLACK)
 		}
+		if app.file_picker.visible {
+			file_picker_draw(&app.file_picker)
+		}
 		rl.EndDrawing()
 
 		clear(&app.chars_pressed)
@@ -101,6 +129,10 @@ app_input :: proc(app: ^App) -> bool {
 	handled := false
 	if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.F) {
 		find_show(&app.find, editor_selected_text(editor))
+		handled = true
+	}
+	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.P) {
+		file_picker_show(&app.file_picker)
 		handled = true
 	}
 	return handled
