@@ -14,6 +14,7 @@ Editor :: struct {
 	scroll: f32,
 	lexer: tokenizer.Tokenizer,
 	highlight: bool,
+	hightlight_line: bool,
 	line_numbers: bool,
 	rect: rl.Rectangle,
 	active: bool,
@@ -354,6 +355,16 @@ editor_draw :: proc(editor: ^Editor) {
 		i32(editor.rect.y), 
 		i32(editor.rect.width), 
 		i32(editor.rect.height))
+
+	if editor.hightlight_line {		
+		line_rec := rl.Rectangle {
+			editor.rect.x,
+			editor.rect.y + f32(current_line) * 40 + scroll^,
+			editor.rect.width,
+			40
+		}
+		rl.DrawRectangleRec(line_rec, { 255, 255, 255, 20 })
+	}
 	
 	char_x := editor.rect.x + line_num_w
 	char_y := f32(40 * first_line) + editor.rect.y + scroll^
