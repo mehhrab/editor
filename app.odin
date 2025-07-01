@@ -43,6 +43,10 @@ app_main :: proc() {
 	rl.SetTargetFPS(30)
 	rl.SetExitKey(nil)
 
+	current_dir, err := os.get_executable_directory(context.allocator)
+	assert(err == nil)
+	defer delete(current_dir)
+
 	// init app
 	app := App {}
 	app.font_size = 40
@@ -64,8 +68,8 @@ app_main :: proc() {
 	find_init(&app.find, &app, &app.editors[0])
 	defer find_deinit(&app.find)
 
-	current_dir, err := os.get_executable_directory(context.allocator)
 	file_picker_init(&app.file_picker, &app, current_dir)
+	defer file_picker_deinit(&app.file_picker)
 
 	for rl.WindowShouldClose() == false {
 		char := rl.GetCharPressed();
@@ -88,12 +92,14 @@ app_main :: proc() {
 				find_input(&app.find)
 			}
 			else if app.file_picker.visible {
-				selected := file_picker_input(&app.file_picker)
+				selected := file_picker_input(&app.file_picker, context.temp_allocator)
 				if selected != "" {
-					text, err := os.read_entire_file(selected, context.allocator)
+					text, err := os.read_entire_file(selected, context.temp_allocator)
 					assert(err == nil)
 
+					editor_deinit(&app.editors[0])
 					app.editors[0] = {}
+					
 					buffer: Buffer; buffer_init(&buffer, string(text))
 					editor_init(&app.editors[0], &app, &buffer)
 					app.editors[0].highlight = true

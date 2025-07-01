@@ -14,7 +14,15 @@ File_Picker :: struct {
 
 file_picker_init :: proc(file_picker: ^File_Picker, app: ^App, dir: string) {
 	file_picker.app = app
-	file_picker.dir = dir
+	file_picker_set_dir(file_picker, dir)
+
+	buffer: Buffer; buffer_init(&buffer, "")
+	editor_init(&file_picker.content, file_picker.app, &buffer)
+}
+
+file_picker_deinit :: proc(file_picker: ^File_Picker) {
+	delete(file_picker.dir)
+	editor_deinit(&file_picker.content)
 }
 
 file_picker_show :: proc(file_picker: ^File_Picker) {
@@ -22,20 +30,20 @@ file_picker_show :: proc(file_picker: ^File_Picker) {
 	file_picker_update_content(file_picker)
 }
 
-file_picker_input :: proc(file_picker: ^File_Picker) -> string {
+file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.allocator) -> string {
 	selected := ""
 	if rl.IsKeyPressed(.ENTER) {
 		line := editor_get_cursor_line(&file_picker.content)
 		line_range := file_picker.content.buffer.line_ranges[line]
 		text := string(file_picker.content.buffer.content[line_range.start:line_range.end])
-		path := strings.join({ file_picker.dir, text }, "\\")
+		path := strings.join({ file_picker.dir, text }, "\\", context.temp_allocator)
 		if text == ".." {
 			index := strings.last_index(file_picker.dir, "\\")
-			file_picker.dir = strings.cut(file_picker.dir, 0, index)
+			file_picker_set_dir(file_picker, strings.cut(file_picker.dir, 0, index))
 			file_picker_update_content(file_picker)
 		}
 		else if os.is_directory(path) {
-			file_picker.dir = path
+			file_picker_set_dir(file_picker, path)
 			file_picker_update_content(file_picker)
 		} 
 		else {
@@ -48,7 +56,7 @@ file_picker_input :: proc(file_picker: ^File_Picker) -> string {
 	else {
 		editor_input(&file_picker.content)
 	}
-	return selected
+	return strings.clone(selected, allocator)
 }
 
 file_picker_draw :: proc(file_picker: ^File_Picker) {
@@ -58,10 +66,12 @@ file_picker_draw :: proc(file_picker: ^File_Picker) {
 }
 
 file_picker_update_content :: proc(file_picker: ^File_Picker) {
-	files, err := os.read_all_directory_by_path(file_picker.dir, context.allocator)
+	files, err := os.read_all_directory_by_path(file_picker.dir, context.temp_allocator)
 	assert(err == nil)
-	buffer: Buffer; buffer_init(&buffer, "")
-	editor_init(&file_picker.content, file_picker.app, &buffer)
+
+	editor_select(&file_picker.content, editor_all(&file_picker.content))
+	editor_delete(&file_picker.content)
+
 	editor_insert(&file_picker.content, "..")
 	for file in files {
 		editor_insert(&file_picker.content, "\n")
@@ -72,4 +82,10 @@ file_picker_update_content :: proc(file_picker: ^File_Picker) {
 
 file_picker_set_rect :: proc(file_picker: ^File_Picker, rect: rl.Rectangle) {
 	file_picker.content.rect = rect
+}
+
+file_picker_set_dir :: proc(file_picker: ^File_Picker, dir: string)
+{
+	delete(file_picker.dir)
+	file_picker.dir = strings.clone(dir)
 }
