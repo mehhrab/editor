@@ -19,6 +19,7 @@ file_picker_init :: proc(file_picker: ^File_Picker, app: ^App, dir: string) {
 	buffer: Buffer; buffer_init(&buffer, "")
 	editor_init(&file_picker.content, file_picker.app, &buffer)
 	file_picker.content.hightlight_line = true
+	file_picker.content.hide_cursor = true
 }
 
 file_picker_deinit :: proc(file_picker: ^File_Picker) {

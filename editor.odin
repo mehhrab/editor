@@ -11,6 +11,7 @@ Editor :: struct {
 	app: ^App,
 	buffer: Buffer,
 	cursor: Cursor,
+	hide_cursor: bool,
 	scroll: f32,
 	lexer: tokenizer.Tokenizer,
 	highlight: bool,
@@ -421,8 +422,8 @@ editor_draw :: proc(editor: ^Editor) {
 		}
 	}
 
-	{
-		// draw cursor
+	// draw cursor
+	if editor.hide_cursor == false {
 		line := editor_get_cursor_line(editor)
 		cursor_x := editor.rect.x + line_num_w
 		cursor_y := editor.rect.y + f32(line) * 40 + scroll^
