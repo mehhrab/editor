@@ -31,8 +31,8 @@ editor_init :: proc(editor: ^Editor, app: ^App, buffer: ^Buffer) {
 	editor.buffer = buffer^
 }
 
-editor_deinit :: proc() {
-
+editor_deinit :: proc(editor: ^Editor) {
+	buffer_deinit(&editor.buffer)
 }
 
 editor_selected_text :: proc(editor: ^Editor) -> string {

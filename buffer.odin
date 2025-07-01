@@ -11,10 +11,15 @@ Buffer :: struct {
 }
 
 buffer_init :: proc(buffer: ^Buffer, text := "") {
-	new_text, _ := strings.replace_all(text, "\r", "")
-	new_text, _ = strings.replace_all(new_text, "\t", "    ")
+	new_text, _ := strings.replace_all(text, "\r", "", context.temp_allocator)
+	new_text, _ = strings.replace_all(new_text, "\t", "    ", context.temp_allocator)
 	append(&buffer.content, new_text) 
 	buffer_calc_line_ranges(buffer)
+}
+
+buffer_deinit :: proc(buffer: ^Buffer) {
+	delete(buffer.content)
+	delete(buffer.line_ranges)
 }
 
 buffer_calc_line_ranges :: proc(buffer: ^Buffer) {

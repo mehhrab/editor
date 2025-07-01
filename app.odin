@@ -47,8 +47,15 @@ app_main :: proc() {
 	app := App {}
 	app.font_size = 40
 	app.font = rl.LoadFontEx("FiraCode-Regular.ttf", i32(app.font_size * 2), nil, 0)
-	
+
 	append(&app.editors, Editor {})
+	defer {
+		for &editor in app.editors {
+			editor_deinit(&editor)
+		}
+		delete(app.editors)
+	}
+
 	buffer: Buffer; buffer_init(&buffer, #load(#file))
 	editor_init(&app.editors[0], &app, &buffer)
 	app.editors[0].highlight = true
