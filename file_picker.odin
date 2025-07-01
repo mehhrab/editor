@@ -56,6 +56,7 @@ file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.alloca
 		file_picker.visible = false
 	}
 	else if rl.IsKeyPressed(.BACKSPACE) {}
+	else if rl.IsKeyDown(.LEFT_SHIFT) {}
 	else if len(file_picker.app.chars_pressed) != 0 {}
 	else {
 		editor_input(&file_picker.content)
