@@ -76,20 +76,7 @@ editor_has_selection :: proc(editor: ^Editor) -> bool {
 
 editor_remember_col :: proc(editor: ^Editor) {
 	line := editor_get_cursor_line(editor)
-	// editor.cursor.last_col = editor.cursor.head - editor.buffer.line_ranges[line].start
-	col := 0
-	for i in editor.buffer.line_ranges[line].start..<editor.cursor.head {
-		c := editor.buffer.content[i]
-		if c == '\t' {
-			col += 4
-		}
-		else {
-			col += 1
-		}
-	}
-	editor.cursor.last_col = col
-	fmt.printfln("remembered {}", col)
-
+	editor.cursor.last_col = col_real_to_visual(editor, line)
 }
 
 editor_get_cursor_line :: proc(editor: ^Editor) -> int {
@@ -130,55 +117,6 @@ editor_clear :: proc(editor: ^Editor) {
 	editor_goto(editor, 0)
 	editor_goto(editor, len(editor.buffer.content), true)
 	editor_delete(editor)
-}
-// TODO
-col_visual_to_real :: proc(editor: ^Editor, line: int) -> int {
-	line_range := editor.buffer.line_ranges[line]
-	col := editor.cursor.last_col
-	// tabs := 0
-	// for i in line_range.start..<line_range.start+col-1 {
-	// 	if editor.buffer.content[i] == '\t' {
-	// 		if col < 4 {
-	// 			// col += 4 - col
-	// 			col = tabs + 1
-	// 			fmt.printfln("x")
-	// 		}
-	// 		else {
-	// 			tabs += 1
-	// 			col -= 3
-	// 		}
-	// 	}
-	// }
-	// 	fmt.printfln("{}", col)
-	// i := line_range.start
-	// tabs := 0
-	// for i < line_range.start + editor.cursor.last_col {
-	// 	if editor.buffer.content[i] == '\t' {
-	// 		i += 3
-	// 		tabs += 1
-	// 	}
-	// 	else {
-
-	// 		i += 1
-	// 	}
-	// }
-	// col = tabs
-	// tabs := 0
-	// for i in line_range.start..<line_range.start+editor.cursor.last_col {
-	// 	if editor.buffer.content[i] == '\t' {
-	// 		tabs += 1
-	// 	}
-	// 	if i >= editor.cursor.head {
-	// 		break
-	// 	}
-	// }
-	// col = tabs
-
-	return col
-}
-
-col_real_to_visual :: proc(editor: ^Editor, i: int) {
-
 }
 
 editor_input :: proc(editor: ^Editor) {
@@ -386,6 +324,8 @@ editor_draw :: proc(editor: ^Editor) {
 		char_w := rl.MeasureTextEx(font^, char_cstring, 40, 0)[0]
 		if char == '\n' {
 			char_w = rl.MeasureTextEx(font^, " ", 40, 0)[0]
+		} else if char == '\t' {
+			char_w = rl.MeasureTextEx(font^, "    ", 40, 0)[0]
 		}
 		rl.DrawTextEx(font^, char_cstring, { char_x, char_y }, 40, 0, char_color)
 		
@@ -456,4 +396,45 @@ get_color_for_token :: proc(kind: tokenizer.Token_Kind) -> rl.Color {
 		color = { 100, 100, 220, 255 }
 	}
 	return color
+}
+
+col_visual_to_real :: proc(editor: ^Editor, line: int) -> int {
+	line_range := editor.buffer.line_ranges[line]
+	col := 0
+	to_move := editor.cursor.last_col
+	for {
+		i := line_range.start + col
+		if to_move < 4 {
+			if editor.buffer.content[i] != '\t' {
+				col += to_move
+			}
+			else {
+				col += int(math.ceil(f32(to_move) / 4 - 0.5))
+			}
+			break
+		}
+		if editor.buffer.content[i] == '\t' {
+			col += 1
+			to_move -= 4
+		}
+		else {
+			col += 1
+			to_move -= 1
+		}
+	}
+	return col
+}
+
+col_real_to_visual :: proc(editor: ^Editor, line: int) -> int {
+	col := 0
+	for i in editor.buffer.line_ranges[line].start..<editor.cursor.head {
+		c := editor.buffer.content[i]
+		if c == '\t' {
+			col += 4
+		}
+		else {
+			col += 1
+		}
+	}
+	return col
 }
