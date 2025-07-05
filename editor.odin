@@ -404,6 +404,9 @@ col_visual_to_real :: proc(editor: ^Editor, line: int) -> int {
 	to_move := editor.cursor.last_col
 	for {
 		i := line_range.start + col
+		if len(editor.buffer.content) <= i {
+			break
+		}
 		if to_move < 4 {
 			if editor.buffer.content[i] != '\t' {
 				col += to_move
