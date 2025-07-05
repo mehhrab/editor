@@ -75,15 +75,15 @@ editor_has_selection :: proc(editor: ^Editor) -> bool {
 }
 
 editor_remember_col :: proc(editor: ^Editor) {
-	line := editor_get_cursor_line(editor)
+	line := editor_line_from_pos(editor, editor.cursor.head)
 	editor.cursor.last_col = col_real_to_visual(editor, line)
 }
 
-editor_get_cursor_line :: proc(editor: ^Editor) -> int {
+editor_line_from_pos :: proc(editor: ^Editor, pos: int) -> int {
 	buffer := &editor.buffer
 	line := 0
 	for range, i in buffer.line_ranges {
-		if range.start <= editor.cursor.head && editor.cursor.head <= range.end {
+		if range.start <= pos && pos <= range.end {
 			line = i
 			break
 		} 
@@ -151,7 +151,7 @@ editor_input :: proc(editor: ^Editor) {
 	}
 	else if key_pressed_or_repeated(.UP) {
 		dest := 0
-		line := editor_get_cursor_line(editor)
+		line := editor_line_from_pos(editor, editor.cursor.head)
 		if 0 < line {
 			dest = buffer.line_ranges[line - 1].start
 			dest += col_visual_to_real(editor, line - 1)
@@ -161,7 +161,7 @@ editor_input :: proc(editor: ^Editor) {
 	}
 	else if key_pressed_or_repeated(.DOWN) {
 		dest := 0
-		line := editor_get_cursor_line(editor)
+		line := editor_line_from_pos(editor, editor.cursor.head)
 		if len(buffer.line_ranges) - 1 <= line {
 			dest = len(buffer.content)
 		}
@@ -186,7 +186,7 @@ editor_input :: proc(editor: ^Editor) {
 		editor_delete(editor)
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.L) {
-		line := editor_get_cursor_line(editor)
+		line := editor_line_from_pos(editor, editor.cursor.head)
 		line_range := editor.buffer.line_ranges[line]
 		editor_goto(editor, line_range.start, editor_has_selection(editor))
 		editor_goto(editor, line_range.end + 1, true)
@@ -202,7 +202,7 @@ editor_input :: proc(editor: ^Editor) {
 			rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
 		}
 		else {
-			line := editor_get_cursor_line(editor)
+			line := editor_line_from_pos(editor, editor.cursor.head)
 			range := editor.buffer.line_ranges[line]
 			text := string(editor.buffer.content[range.start:range.end])
 			// text = strings.join({ text, "\n" }, "", context.temp_allocator)
@@ -220,7 +220,7 @@ editor_input :: proc(editor: ^Editor) {
 			rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
 		}
 		else {
-			line := editor_get_cursor_line(editor)
+			line := editor_line_from_pos(editor, editor.cursor.head)
 			range = editor.buffer.line_ranges[line]
 			// if range.end < len(editor.buffer.content) {
 			// 	range.end += 1
@@ -249,7 +249,7 @@ editor_draw :: proc(editor: ^Editor) {
 	font := &editor.app.font
 	scroll := &editor.scroll
 
-	current_line := editor_get_cursor_line(editor)
+	current_line := editor_line_from_pos(editor, editor.cursor.head)
 	if f32(current_line * 40) + 40 > editor.rect.height - scroll^ {
 		scroll^ = -(f32((current_line + 1) * 40) - editor.rect.height)
 	}
@@ -350,7 +350,7 @@ editor_draw :: proc(editor: ^Editor) {
 	if editor.line_numbers {		
 		for i in first_line..=last_line {
 			number_color := rl.Color { 255, 255, 255, 50 }
-			if i == editor_get_cursor_line(editor) {
+			if i == editor_line_from_pos(editor, editor.cursor.head) {
 				number_color = rl.Color { 255, 255, 255, 150 }
 			}
 			pos := rl.Vector2 { editor.rect.x + 10, editor.rect.y + f32(i) * 40 + scroll^ }
@@ -360,7 +360,7 @@ editor_draw :: proc(editor: ^Editor) {
 
 	// draw cursor
 	if editor.hide_cursor == false {
-		line := editor_get_cursor_line(editor)
+		line := editor_line_from_pos(editor, editor.cursor.head)
 		cursor_x := editor.rect.x + line_num_w
 		cursor_y := editor.rect.y + f32(line) * 40 + scroll^
 		for i in buffer.line_ranges[line].start..<editor.cursor.head {

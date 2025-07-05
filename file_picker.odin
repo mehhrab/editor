@@ -35,7 +35,7 @@ file_picker_show :: proc(file_picker: ^File_Picker) {
 file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.allocator) -> string {
 	selected := ""
 	if rl.IsKeyPressed(.ENTER) {
-		line := editor_get_cursor_line(&file_picker.content)
+		line := editor_line_from_pos(&file_picker.content, file_picker.content.cursor.head)
 		line_range := file_picker.content.buffer.line_ranges[line]
 		text := string(file_picker.content.buffer.content[line_range.start:line_range.end])
 		path := strings.join({ file_picker.dir, text }, "\\", context.temp_allocator)
