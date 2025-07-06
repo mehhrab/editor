@@ -38,10 +38,9 @@ file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.alloca
 		line := editor_line_from_pos(&file_picker.content, file_picker.content.cursor.head)
 		line_range := file_picker.content.buffer.line_ranges[line]
 		text := string(file_picker.content.buffer.content[line_range.start:line_range.end])
-		path := strings.join({ file_picker.dir, text }, "\\", context.temp_allocator)
+		path := join_paths({ file_picker.dir, text }, context.temp_allocator)
 		if text == ".." {
-			index := strings.last_index(file_picker.dir, "\\")
-			file_picker_set_dir(file_picker, strings.cut(file_picker.dir, 0, index))
+			file_picker_set_dir(file_picker, parent_path(file_picker.dir))
 			file_picker_update_content(file_picker)
 		}
 		else if os.is_directory(path) {

@@ -169,7 +169,7 @@ app_input :: proc(app: ^App) -> bool {
 }
 
 app_open_file :: proc(app: ^App, path: string) {
-	file_name := strings.cut(path, strings.last_index(path, "\\") + 1)
+	file_name := shorten_path(path)
 	text, err := os.read_entire_file(path, context.temp_allocator)
 	assert(err == nil)
 
