@@ -10,15 +10,7 @@ else {
 }
 
 shorten_path :: proc(path: string) -> string {
-	if strings.contains_any(path, "/") {
-		return strings.cut(path, strings.last_index(path, "/") + 1)
-	}
-	else if strings.contains_any(path, "\\") {
-		return strings.cut(path, strings.last_index(path, "\\") + 1)
-	}
-	else {
-		return path
-	}
+	return strings.cut(path, strings.last_index(path, PATH_SEP) + 1)
 }
 
 join_paths :: proc(paths: []string, aloc := context.allocator) -> string {
