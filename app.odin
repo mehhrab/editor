@@ -60,7 +60,7 @@ app_main :: proc() {
 		delete(app.editors)
 	}
 
-	app_open_file(&app, #file)
+	app_open_file(&app, join_paths({ current_dir, "app.odin" }))
 
 	find_init(&app.find, &app, &app.editors[app.editor_index])
 	defer find_deinit(&app.find)
@@ -169,6 +169,13 @@ app_input :: proc(app: ^App) -> bool {
 }
 
 app_open_file :: proc(app: ^App, path: string) {
+	for editor, i in app.editors {
+		if editor.path == path {
+			app.editor_index = i
+			return
+		}
+	}
+
 	file_name := shorten_path(path)
 	text, err := os.read_entire_file(path, context.temp_allocator)
 	assert(err == nil)
