@@ -258,8 +258,8 @@ editor_draw :: proc(editor: ^Editor) {
 	rl.DrawRectangleRec(editor.rect, { 0, 20, 40, 255 })
 
 	current_line := editor_line_from_pos(editor, editor.cursor.head)
-	if f32(current_line * 40) + 40 > editor.rect.height - scroll^ {
-		scroll^ = -(f32((current_line + 1) * 40) - editor.rect.height)
+	if f32(current_line * 40) + 40 * 2 > editor.rect.height - scroll^ {
+		scroll^ = -(f32((current_line + 2) * 40) - editor.rect.height)
 	}
 	if f32(current_line * 40) < -scroll^ {
 		scroll^ = -(f32((current_line) * 40))
