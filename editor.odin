@@ -9,6 +9,8 @@ import "core:math"
 
 Editor :: struct {
 	app: ^App,
+	path: string,
+	name: string,
 	buffer: Buffer,
 	cursor: Cursor,
 	hide_cursor: bool,
@@ -28,13 +30,17 @@ Cursor :: struct {
 	last_line_tabs: int,
 }
 
-editor_init :: proc(editor: ^Editor, app: ^App, buffer: ^Buffer) {
+editor_init :: proc(editor: ^Editor, app: ^App, buffer: ^Buffer, path, name: string) {
 	editor.app = app
 	editor.buffer = buffer^
+	editor.path = strings.clone(path)
+	editor.name = strings.clone(name)
 }
 
 editor_deinit :: proc(editor: ^Editor) {
 	buffer_deinit(&editor.buffer)
+	delete(editor.path)
+	delete(editor.name)
 }
 
 editor_selected_text :: proc(editor: ^Editor) -> string {
@@ -248,6 +254,8 @@ editor_draw :: proc(editor: ^Editor) {
 	buffer := &editor.buffer
 	font := &editor.app.font
 	scroll := &editor.scroll
+
+	rl.DrawRectangleRec(editor.rect, { 0, 20, 40, 255 })
 
 	current_line := editor_line_from_pos(editor, editor.cursor.head)
 	if f32(current_line * 40) + 40 > editor.rect.height - scroll^ {

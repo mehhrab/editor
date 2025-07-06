@@ -16,7 +16,7 @@ Find :: struct {
 find_init :: proc(find: ^Find, app: ^App, editor: ^Editor) {
 	find.editor = editor
 	buffer: Buffer; buffer_init(&buffer, "")
-	editor_init(&find.input, app, &buffer)
+	editor_init(&find.input, app, &buffer, "", "")
 }
 
 find_deinit :: proc(find: ^Find) {
