@@ -85,14 +85,14 @@ app_main :: proc() {
 		file_picker_set_rect(&app.file_picker, file_picker_rect)
 
 		if app_input(&app) == false {
-			if app.find.visible {
-				find_input(&app.find)
-			}
-			else if app.file_picker.visible {
+			if app.file_picker.visible {
 				selected := file_picker_input(&app.file_picker, context.temp_allocator)
 				if selected != "" {
 					app_open_file(&app, selected)
 				}
+			}
+			else if app.find.visible {
+				find_input(&app.find)
 			}
 			else {
 				editor_input(&app.editors[app.editor_index])
