@@ -324,6 +324,7 @@ editor_draw :: proc(editor: ^Editor) {
 		last_line = 0
 	}
 	// HACK: idk brah
+	first_line = clamp(first_line, 0, len(buffer.line_ranges) - 1)
 	last_line = clamp(last_line, 0, len(buffer.line_ranges) - 1)
 	first_line_range := buffer.line_ranges[first_line]
 	last_line_range := buffer.line_ranges[last_line]
@@ -437,7 +438,7 @@ get_color_for_token :: proc(syntax: ^Syntax, kind: tokenizer.Token_Kind) -> rl.C
 	else if kind == .Float || kind == .Integer {
 		color = syntax.number
 	}
-	
+
 	return color
 }
 

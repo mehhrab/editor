@@ -11,6 +11,8 @@ Find :: struct {
 	matches: [dynamic]Range,
 	match_index: int,
 	cursor_before_search: Cursor,
+	scroll_x_before_search: f32,
+	scroll_y_before_search: f32,
 }
 
 find_init :: proc(find: ^Find, app: ^App, editor: ^Editor) {
@@ -56,6 +58,14 @@ find_next :: proc(find: ^Find) {
 	if len(find.matches) != 0 {		
 		editor_goto(editor, find.matches[find.match_index].start)	
 		editor_goto(editor, find.matches[find.match_index].end, true)	
+
+		// center found match vertically
+		line_index := editor_line_from_pos(editor, find.matches[find.match_index].start)
+		editor.scroll_y = -(f32(line_index) * 40 - f32(rl.GetScreenHeight()) / 2)  
+		if editor.scroll_y > 0 {
+			editor.scroll_y = 0
+		}
+
 		find.match_index = (find.match_index + 1) % len(find.matches)
 	}
 	else {
@@ -77,6 +87,8 @@ find_input :: proc(find: ^Find) -> bool {
 	}
 	else if rl.IsKeyPressed(.ESCAPE) {
 		find.editor.cursor = find.cursor_before_search
+		find.editor.scroll_x = find.scroll_x_before_search
+		find.editor.scroll_y = find.scroll_y_before_search
 		find_hide(find)
 		handled = true
 	}
@@ -101,13 +113,18 @@ find_draw :: proc(find: ^Find) {
 
 find_show :: proc(find: ^Find, word := "") {
 	find.visible = true
+	
 	find.cursor_before_search = find.editor.cursor
+	find.scroll_x_before_search = find.editor.scroll_x
+	find.scroll_y_before_search = find.editor.scroll_y
+
 	if word != "" {
 		editor_select(&find.input, editor_all(&find.input))
 		editor_delete(&find.input)
 		editor_insert(&find.input, word)
 	}
 	editor_select(&find.input, editor_all(&find.input))
+	
 	find_matches(find)
 	if word != "" {
 		find_next(find)
