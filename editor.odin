@@ -28,7 +28,6 @@ Cursor :: struct {
 	head: int,
 	anchor: int,
 	last_col: int,
-	last_line_tabs: int,
 }
 
 editor_init :: proc(editor: ^Editor, app: ^App, buffer: ^Buffer, path, name: string) {
