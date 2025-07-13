@@ -55,7 +55,8 @@ file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.alloca
 	else if rl.IsKeyPressed(.ESCAPE) {
 		file_picker.visible = false
 	}
-	else if key_pressed_or_repeated(.DOWN) || key_pressed_or_repeated(.UP) {
+	else if (key_pressed_or_repeated(.DOWN) || key_pressed_or_repeated(.UP)) &&
+	rl.IsKeyDown(.LEFT_SHIFT) == false {
 		editor_input(&file_picker.content)
 	}
 	return strings.clone(selected, allocator)
