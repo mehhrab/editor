@@ -403,6 +403,10 @@ editor_draw :: proc(editor: ^Editor) {
 			pos := rl.Vector2 { lines_rect.x + 10, lines_rect.y + f32(i) * 40 + scroll_y^ }
 			rl.DrawTextEx(font^, fmt.ctprint(i + 1), pos, 40, 0, number_color)
 		}
+
+		shadow_rect := rl.Rectangle { code_rect.x, code_rect.y, 30, code_rect.height }
+		shadow_color := rl.Color { 0, 0, 0, 50 }
+		rl.DrawRectangleGradientEx(shadow_rect, shadow_color, shadow_color, {}, {})
 	}
 
 	// draw cursor
