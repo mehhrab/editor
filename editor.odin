@@ -253,6 +253,7 @@ editor_input :: proc(editor: ^Editor) {
 editor_draw :: proc(editor: ^Editor) {
 	buffer := &editor.buffer
 	font := &editor.app.font
+	theme := &editor.app.theme
 	scroll_x := &editor.scroll_x
 	scroll_y := &editor.scroll_y
 
@@ -269,7 +270,7 @@ editor_draw :: proc(editor: ^Editor) {
 		editor.rect.height,
 	}
 
-	rl.DrawRectangleRec(editor.rect, { 0, 20, 40, 255 })
+	rl.DrawRectangleRec(editor.rect, theme.bg)
 	
 	current_line := editor_line_from_pos(editor, editor.cursor.head)
 	
@@ -357,12 +358,11 @@ editor_draw :: proc(editor: ^Editor) {
 			token_index += 1
 		} 
 		token := tokens[token_index]
-		char_color := rl.Color { 10, 140, 255, 255 }
+		char_color := theme.text
 		if editor.highlight { 
-			char_color = get_color_for_token(token.kind)
+			char_color = get_color_for_token(&theme.syntax, token.kind)
 		}
 
-		// draw text
 		char_cstring := fmt.ctprint(rune(char))
 		char_w := rl.MeasureTextEx(font^, char_cstring, 40, 0)[0]
 		if char == '\n' {
@@ -370,14 +370,16 @@ editor_draw :: proc(editor: ^Editor) {
 		} else if char == '\t' {
 			char_w = rl.MeasureTextEx(font^, "    ", 40, 0)[0]
 		}
-		rl.DrawTextEx(font^, char_cstring, { char_x, char_y }, 40, 0, char_color)
-		
+
 		// draw selection
 		cursor_range := cursor_to_range(&editor.cursor)
 		if cursor_range.start <= char_index && char_index < cursor_range.end {
-			rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, { 255, 255, 255, 30 })
+			rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, theme.selection)
 		} 
 
+		// draw text
+		rl.DrawTextEx(font^, char_cstring, { char_x, char_y }, 40, 0, char_color)
+		
 		if char == '\n' {
 			char_x = start_x
 			char_y += 40
@@ -390,12 +392,12 @@ editor_draw :: proc(editor: ^Editor) {
 	}
 	
 	// draw line numbers
-	rl.DrawRectangleRec(lines_rect, rl.BLACK)
+	rl.DrawRectangleRec(lines_rect, theme.bg)
 	if editor.line_numbers {		
 		for i in first_line..=last_line {
-			number_color := rl.Color { 255, 255, 255, 50 }
+			number_color := theme.text2
 			if i == editor_line_from_pos(editor, editor.cursor.head) {
-				number_color = rl.Color { 255, 255, 255, 150 }
+				number_color = theme.text
 			}
 			pos := rl.Vector2 { lines_rect.x + 10, lines_rect.y + f32(i) * 40 + scroll_y^ }
 			rl.DrawTextEx(font^, fmt.ctprint(i + 1), pos, 40, 0, number_color)
@@ -416,29 +418,26 @@ editor_draw :: proc(editor: ^Editor) {
 			}
 			cursor_x += char_w
 		}
-		rl.DrawRectangleRec({ cursor_x, cursor_y, 2, 40 }, rl.SKYBLUE)
+		rl.DrawRectangleRec({ cursor_x, cursor_y, 2, 40 }, theme.caret)
 	}
 	rl.EndScissorMode()
 }
 
-get_color_for_token :: proc(kind: tokenizer.Token_Kind) -> rl.Color {
-	color := rl.Color { 10, 140, 255, 255 }
+get_color_for_token :: proc(syntax: ^Syntax, kind: tokenizer.Token_Kind) -> rl.Color {
+	color := syntax.default
 	if kind == .Ident {
-		color = rl.SKYBLUE
-		color.b -= 20
+		color = syntax.symbol
 	}
 	else if kind == .String {
-		color = rl.GREEN
+		color = syntax.sstring
 	}
 	else if kind == .Comment {
-		color = { 10, 120, 100, 255 }
+		color = syntax.comment
 	}
 	else if kind == .Float || kind == .Integer {
-		color = { 170, 100, 220, 255 }
+		color = syntax.number
 	}
-	else if kind == .Pointer || kind == .And {
-		color = { 100, 100, 220, 255 }
-	}
+	
 	return color
 }
 

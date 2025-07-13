@@ -62,6 +62,7 @@ file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.alloca
 }
 
 file_picker_draw :: proc(file_picker: ^File_Picker) {
+	theme := &file_picker.app.theme
 	screen_rect := rl.Rectangle { 0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()) }
 	rl.DrawRectangleRec(screen_rect, { 0, 0, 0, 55 })
 
@@ -77,11 +78,9 @@ file_picker_draw :: proc(file_picker: ^File_Picker) {
 	shadow_rect.y += 20
 	rl.DrawRectangleRec(shadow_rect, { 0, 0, 0, 255 })
 
-	rl.DrawRectangleRec(expanded_rect, { 0, 20, 40, 255 })
-
-	rl.DrawRectangleRec(file_picker.content.rect, { 0, 20, 40, 255 })
+	rl.DrawRectangleRec(expanded_rect, theme.bg)
 	editor_draw(&file_picker.content)
-	rl.DrawRectangleLinesEx(expanded_rect, 1, { 20, 120, 240, 255 })
+	rl.DrawRectangleLinesEx(expanded_rect, 1, theme.selection)
 }
 
 file_picker_update_content :: proc(file_picker: ^File_Picker) {

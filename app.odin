@@ -8,6 +8,7 @@ import "core:slice"
 import os "core:os/os2"
 
 App :: struct {
+	theme: Theme,
 	font: rl.Font,
 	font_size: f32,
 	editors: [dynamic]Editor,
@@ -49,6 +50,7 @@ app_main :: proc() {
 	defer delete(current_dir)
 
 	app := App {}
+	app.theme = THEME_DEFAULT
 	app.font_size = 40
 	app.font = rl.LoadFontEx("FiraCode-Regular.ttf", i32(app.font_size * 2), nil, 0)
 	defer delete(app.chars_pressed)
@@ -107,12 +109,29 @@ app_main :: proc() {
 		for editor, i in app.editors {
 			tab_w := screen_rect.width / f32(len(app.editors))
 			tab_rect := rl.Rectangle { f32(i) * tab_w, 0, tab_w, 40 }
-			rl.DrawRectangleRec(tab_rect, i == app.editor_index ? rl.SKYBLUE : { 60, 70, 90, 255 })
-			
+			rl.DrawRectangleRec(tab_rect, i == app.editor_index ? app.theme.bg : app.theme.bg_dim)
+			if len(app.editors) != 0 && i == app.editor_index {
+				if i != 0 {
+					rl.DrawTriangle(
+						{ tab_rect.x, tab_rect.y + tab_rect.height },
+						{ tab_rect.x + 40, tab_rect.y },
+						{ tab_rect.x, tab_rect.y }, 
+						app.theme.bg_dim)
+				}
+				if i != len(app.editors) - 1 {					
+					rl.DrawTriangle(
+						{ tab_rect.x + tab_rect.width, tab_rect.y }, 
+						{ tab_rect.x + tab_rect.width - 40, tab_rect.y },
+						{ tab_rect.x + tab_rect.width, tab_rect.y + tab_rect.height },
+						app.theme.bg_dim)
+				}
+			}
+			rl.BeginScissorMode(i32(tab_rect.x + 40), i32(tab_rect.y), i32(tab_rect.width - 40 * 2), i32(tab_rect.height))
 			name_cstring := strings.clone_to_cstring(editor.name, context.temp_allocator)			
 			text_w := rl.MeasureTextEx(app.font, name_cstring, 40, 0)[0]
 			text_pos := rl.Vector2 { tab_rect.x + tab_rect.width / 2 - text_w / 2, tab_rect.y }
-			rl.DrawTextEx(app.font, name_cstring, text_pos, 40, 0, rl.BLACK)
+			rl.DrawTextEx(app.font, name_cstring, text_pos, 40, 0, i == app.editor_index ? app.theme.text : app.theme.text2)
+			rl.EndScissorMode()
 		}
 		
 		editor_draw(&app.editors[app.editor_index])
