@@ -78,7 +78,7 @@ app_main :: proc() {
 		}
 
 		screen_rect := rl.Rectangle { 0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()) }
-		app.editors[app.editor_index].rect = { 0, 40, screen_rect.width, screen_rect.height - 40 }
+		app.editors[app.editor_index].rect = { 0, 41, screen_rect.width, screen_rect.height - 40 }
 		app.find.input.rect = { 0, screen_rect.height - 40, screen_rect.width, 40 }
 		
 		file_picker_rect := rl.Rectangle { 0, 0, 700, 400 }
@@ -100,11 +100,9 @@ app_main :: proc() {
 				editor_input(&app.editors[app.editor_index])
 			}
 		}
-		// if rl.IsKeyPressed(.F6) {
-		// 	fmt.printfln("{}", string(app.find_editor.buffer.content[:]))
-		// }
+
 		rl.BeginDrawing()
-		rl.ClearBackground({ 0, 20, 40, 255 })
+		rl.ClearBackground(app.theme.bg_dim)
 		
 		for editor, i in app.editors {
 			tab_w := screen_rect.width / f32(len(app.editors))

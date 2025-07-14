@@ -21,11 +21,11 @@ Syntax :: struct {
 }
 
 THEME_DEFAULT :: Theme {
-	bg = { 30, 30, 30, 255 },
+	bg = { 50, 50, 50, 255 },
 	bg_dim = { 20, 20, 20, 255 },
 	text = rl.WHITE,
 	text2 = rl.GRAY,
-	selection = { 50, 50, 50, 255 },
+	selection = { 70, 70, 70, 255 },
 	caret = rl.SKYBLUE,
 	syntax = {
 		default = rl.SKYBLUE,

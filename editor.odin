@@ -257,6 +257,8 @@ editor_draw :: proc(editor: ^Editor) {
 	scroll_x := &editor.scroll_x
 	scroll_y := &editor.scroll_y
 
+	pad := f32(20)
+	
 	lines_rect := rl.Rectangle {
 		editor.rect.x,
 		editor.rect.y,
@@ -264,11 +266,14 @@ editor_draw :: proc(editor: ^Editor) {
 		editor.rect.height,
 	}
 	code_rect := rl.Rectangle {
-		editor.rect.x + lines_rect.width,
+		editor.rect.x + lines_rect.width + pad,
 		editor.rect.y,
-		editor.rect.width - lines_rect.width,
+		editor.rect.width - lines_rect.width - pad,
 		editor.rect.height,
 	}
+	// code_rect_margined := code_rect
+	// code_rect_margined.x += 30
+	// code_rect_margined.width -= 30
 
 	rl.DrawRectangleRec(editor.rect, theme.bg)
 	
@@ -298,8 +303,8 @@ editor_draw :: proc(editor: ^Editor) {
 
 	// calculate scroll_y
 	current_line_y := f32(current_line * 40)
-	if editor.rect.height - scroll_y^ < current_line_y + look_ahead_y {
-		scroll_y^ = -(current_line_y - editor.rect.height + look_ahead_y)
+	if code_rect.height - scroll_y^ < current_line_y + look_ahead_y {
+		scroll_y^ = -(current_line_y - code_rect.height + look_ahead_y)
 	}
 	if current_line_y < -scroll_y^ {
 		scroll_y^ = -current_line_y
@@ -404,7 +409,12 @@ editor_draw :: proc(editor: ^Editor) {
 			rl.DrawTextEx(font^, fmt.ctprint(i + 1), pos, 40, 0, number_color)
 		}
 
-		shadow_rect := rl.Rectangle { code_rect.x, code_rect.y, 30, code_rect.height }
+		shadow_rect := rl.Rectangle { 
+			lines_rect.x + lines_rect.width, 
+			editor.rect.y, 
+			30, 
+			editor.rect.height 
+		}
 		shadow_color := rl.Color { 0, 0, 0, 50 }
 		rl.DrawRectangleGradientEx(shadow_rect, shadow_color, shadow_color, {}, {})
 	}
