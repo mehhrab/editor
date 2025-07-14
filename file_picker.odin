@@ -105,6 +105,8 @@ file_picker_set_rect :: proc(file_picker: ^File_Picker, rect: rl.Rectangle) {
 
 file_picker_set_dir :: proc(file_picker: ^File_Picker, dir: string)
 {
+	// dir might be a slice of file_picker.dir so clone it early.
+	to_be_assigned := strings.clone(dir)
 	delete(file_picker.dir)
-	file_picker.dir = strings.clone(dir)
+	file_picker.dir = to_be_assigned 
 }
