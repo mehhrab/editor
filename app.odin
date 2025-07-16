@@ -162,34 +162,24 @@ app_input :: proc(app: ^App) -> bool {
 		handled = true
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.TAB) {
-		app.editor_index = (app.editor_index + 1) % len(app.editors) 
-		app.find.editor = &app.editors[app.editor_index]
-		if app.find.visible { 
-			find_matches(&app.find)
-		}
+		app_focus_editor(app, (app.editor_index + 1) % len(app.editors)) 
 		handled = true
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.W) {
 		if 1 < len(app.editors) {			
 			editor_deinit(&app.editors[app.editor_index])
 			ordered_remove(&app.editors, app.editor_index)
-			app.editor_index = len(app.editors) - 1
-			
-			app.find.editor = &app.editors[app.editor_index]
-			if app.find.visible { 
-				find_matches(&app.find)
-			}
+			app_focus_editor(app, len(app.editors) - 1)
 		}
 		handled = true
 	}
 	return handled
 }
 
-app_open_file :: proc(app: ^App, path: string) {
+app_open_file :: proc(app: ^App, path: string) -> int {
 	for editor, i in app.editors {
 		if editor.path == path {
-			app.editor_index = i
-			return
+			return i
 		}
 	}
 
@@ -198,14 +188,25 @@ app_open_file :: proc(app: ^App, path: string) {
 	assert(err == nil)
 
 	append(&app.editors, Editor {})
-	app.editor_index = len(app.editors) - 1
-	
-	buffer: Buffer; buffer_init(&buffer, string(text))
-	editor_init(&app.editors[app.editor_index], app, &buffer, path, file_name)
-	app.editors[app.editor_index].highlight = true
-	app.editors[app.editor_index].line_numbers = true
+	index := len(app.editors) - 1
+	editor := &app.editors[index]
 
+	buffer: Buffer; buffer_init(&buffer, string(text))
+	editor_init(editor, app, &buffer, path, file_name)
+	editor.highlight = true
+	editor.line_numbers = true
+
+	app_focus_editor(app, index)
+	
+	return index
+}
+
+app_focus_editor :: proc(app: ^App, index: int) {
+	app.editor_index = index
 	app.find.editor = &app.editors[app.editor_index]
+	if app.find.visible {
+		find_matches(&app.find)
+	}
 }
 
 key_pressed_or_repeated :: proc(key: rl.KeyboardKey) -> bool {
