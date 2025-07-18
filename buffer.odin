@@ -34,3 +34,8 @@ buffer_calc_line_ranges :: proc(buffer: ^Buffer) {
 	line_range.end = len(buffer.content)
 	append(&buffer.line_ranges, line_range)
 }
+
+buffer_content_with_clrf :: proc(buffer: ^Buffer, allocator := context.allocator) -> []byte {
+	content, _ := strings.replace_all(string(buffer.content[:]), "\n", "\r\n", context.temp_allocator)
+	return transmute([]byte)strings.clone(content, allocator)
+}

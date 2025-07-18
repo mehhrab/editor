@@ -169,6 +169,10 @@ app_input :: proc(app: ^App) -> bool {
 		app_new_file(app)
 		handled = true
 	}
+	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.S) {
+		app_save_file(app, app.editor_index)
+		handled = true
+	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.W) {
 		if 1 < len(app.editors) {			
 			editor_deinit(&app.editors[app.editor_index])
@@ -218,6 +222,14 @@ app_open_file :: proc(app: ^App, path: string) -> int {
 	app_focus_editor(app, index)
 	
 	return index
+}
+
+app_save_file :: proc(app: ^App, index: int) {
+	editor := &app.editors[index]
+	// TODO: add an config option to use clrf or not
+	text := buffer_content_with_clrf(&editor.buffer, context.temp_allocator)
+	write_err := os.write_entire_file(editor.path, text)
+	assert(write_err == nil)
 }
 
 app_focus_editor :: proc(app: ^App, index: int) {
