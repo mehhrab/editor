@@ -35,9 +35,19 @@ file_picker_show :: proc(file_picker: ^File_Picker) {
 	file_picker.visible = true
 }
 
+file_picker_hide :: proc(file_picker: ^File_Picker) {
+	file_picker.visible = false
+}
+
 // TODO: clean this whole thing
-file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.allocator) -> string {
+file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.allocator) -> (bool, string) {
+	if file_picker.visible == false {
+		return false, strings.clone("", allocator)
+	}
+
+	handled := false
 	selected := ""
+
 	if rl.IsKeyPressed(.ENTER) {
 		line := editor_line_from_pos(&file_picker.content, file_picker.content.cursor.head)
 		line_range := file_picker.content.buffer.line_ranges[line]
@@ -64,32 +74,30 @@ file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.alloca
 				file_picker_set_dir(file_picker, parent_path)
 			}
 			file_picker_update_content(file_picker, items)
+			handled = true
 		}
 		else if os.is_file(full_path) {
 			selected = full_path 
 			file_picker.visible = false
+			handled = true
 		}
 		else {
 			file_picker_set_dir(file_picker, full_path)	
 			file_picker_update_content(
 				file_picker, 
 				file_picker_items_from_dir(full_path, context.temp_allocator))
+			handled = true
 		}
-	}
-	else if rl.IsKeyPressed(.ESCAPE) {
-		file_picker.visible = false
 	}
 	else if (key_pressed_or_repeated(.DOWN) || key_pressed_or_repeated(.UP)) &&
 	rl.IsKeyDown(.LEFT_SHIFT) == false {
-		editor_input(&file_picker.content)
+		handled = editor_input(&file_picker.content)
 	}
-	return strings.clone(selected, allocator)
+	return handled, strings.clone(selected, allocator)
 }
 
 file_picker_draw :: proc(file_picker: ^File_Picker) {
 	theme := &file_picker.app.theme
-	screen_rect := rl.Rectangle { 0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()) }
-	rl.DrawRectangleRec(screen_rect, { 0, 0, 0, 55 })
 
 	padding := f32(20)
 	expanded_rect := file_picker.content.rect

@@ -75,6 +75,10 @@ find_next :: proc(find: ^Find) {
 
 find_input :: proc(find: ^Find) -> bool {
 	app := find.editor.app
+	
+	if find.visible == false {
+		return false
+	}
 
 	handled := false
 	if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.N) {
@@ -85,22 +89,17 @@ find_input :: proc(find: ^Find) -> bool {
 		find_hide(find)
 		handled = true
 	}
-	else if rl.IsKeyPressed(.ESCAPE) {
-		find.editor.cursor = find.cursor_before_search
-		find.editor.scroll_x = find.scroll_x_before_search
-		find.editor.scroll_y = find.scroll_y_before_search
-		find_hide(find)
-		handled = true
-	}
 	else {
-		editor_input(&find.input)
+		handled = editor_input(&find.input)
 		if rl.IsKeyPressed(.BACKSPACE) {
 			find_matches(find)
 			find_next(find)
+			handled = true
 		}
 		for char in app.chars_pressed {
 			find_matches(find)
 			find_next(find)
+			handled = true
 		}
 	}
 	return handled
@@ -133,4 +132,11 @@ find_show :: proc(find: ^Find, word := "") {
 
 find_hide :: proc(find: ^Find) {
 	find.visible = false
+}
+
+find_cancel :: proc(find: ^Find) {
+	find.editor.cursor = find.cursor_before_search
+	find.editor.scroll_x = find.scroll_x_before_search
+	find.editor.scroll_y = find.scroll_y_before_search
+	find_hide(find)
 }

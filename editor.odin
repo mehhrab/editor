@@ -125,12 +125,10 @@ editor_clear :: proc(editor: ^Editor) {
 	editor_delete(editor)
 }
 
-editor_input :: proc(editor: ^Editor) {
+editor_input :: proc(editor: ^Editor) -> bool {
 	buffer := &editor.buffer
 
-	if rl.IsKeyPressed(.F1) {
-		fmt.printfln("{}", editor.cursor.last_col)
-	}
+	handled := false
 	
 	shift_down := rl.IsKeyDown(.LEFT_SHIFT)
 	if key_pressed_or_repeated(.RIGHT) {
@@ -143,6 +141,7 @@ editor_input :: proc(editor: ^Editor) {
 			dest = editor.cursor.head + 1
 		}
 		editor_goto(editor, dest, shift_down)
+		handled = true
 	}
 	else if key_pressed_or_repeated(.LEFT) {
 		dest := 0
@@ -154,6 +153,7 @@ editor_input :: proc(editor: ^Editor) {
 			dest = editor.cursor.head - 1
 		}
 		editor_goto(editor, dest, shift_down)
+		handled = true
 	}
 	else if key_pressed_or_repeated(.UP) {
 		dest := 0
@@ -164,6 +164,7 @@ editor_input :: proc(editor: ^Editor) {
 			dest = editor_clamp_in_line(editor, dest, line - 1)
 		}
 		editor_goto(editor, dest, shift_down, false)
+		handled = true
 	}
 	else if key_pressed_or_repeated(.DOWN) {
 		dest := 0
@@ -177,28 +178,34 @@ editor_input :: proc(editor: ^Editor) {
 			dest = editor_clamp_in_line(editor, dest, line + 1)
 		}
 		editor_goto(editor, dest, shift_down, false)
+		handled = true
 	}
 	else if key_pressed_or_repeated(.ENTER) {
 		editor_delete(editor)
 		editor_insert(editor, "\n")
+		handled = true
 	}
 	else if key_pressed_or_repeated(.TAB) {
 		editor_insert(editor, "\t")
+		handled = true
 	}
 	else if key_pressed_or_repeated(.BACKSPACE) {
 		if editor_has_selection(editor) == false {
 			editor_goto(editor, editor.cursor.head - 1, true)
 		} 
 		editor_delete(editor)
+		handled = true
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.L) {
 		line := editor_line_from_pos(editor, editor.cursor.head)
 		line_range := editor.buffer.line_ranges[line]
 		editor_goto(editor, line_range.start, editor_has_selection(editor))
 		editor_goto(editor, line_range.end + 1, true)
+		handled = true
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.A) {
 		editor_select(editor, editor_all(editor))
+		handled = true
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.C) {
 		if editor_has_selection(editor) {
@@ -214,6 +221,7 @@ editor_input :: proc(editor: ^Editor) {
 			// text = strings.join({ text, "\n" }, "", context.temp_allocator)
 			rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
 		}
+		handled = true
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.X) {
 		range := Range {}
@@ -236,18 +244,23 @@ editor_input :: proc(editor: ^Editor) {
 		}
 		editor_select(editor, range)
 		editor_delete(editor)
+		handled = true
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.V) {
 		editor_delete(editor)
 		text := strings.clone_from_cstring(rl.GetClipboardText(), context.temp_allocator)
 		editor_insert(editor, text)
+		handled = true
 	}
 	else {		
 		for char in editor.app.chars_pressed {			
 			editor_delete(editor)
 			editor_insert(editor, fmt.tprint(char))
+			handled = true
 		}
 	}
+
+	return handled
 }
 
 editor_draw :: proc(editor: ^Editor) {

@@ -86,19 +86,20 @@ app_main :: proc() {
 		file_picker_rect.y = screen_rect.height / 2 - file_picker_rect.height / 2
 		file_picker_set_rect(&app.file_picker, file_picker_rect)
 
-		if app_input(&app) == false {
-			if app.file_picker.visible {
-				selected := file_picker_input(&app.file_picker, context.temp_allocator)
-				if selected != "" {
-					app_open_file(&app, selected)
-				}
+		handled := false
+		handled = find_input(&app.find)
+		if handled == false {
+			selected: string
+			handled, selected = file_picker_input(&app.file_picker, context.temp_allocator)
+			if selected != "" {
+				app_open_file(&app, selected)
 			}
-			else if app.find.visible {
-				find_input(&app.find)
-			}
-			else {
-				editor_input(&app.editors[app.editor_index])
-			}
+		}
+		if handled == false {
+			handled = app_input(&app)
+		}
+		if handled == false {
+			editor_input(&app.editors[app.editor_index])
 		}
 
 		rl.BeginDrawing()
@@ -154,6 +155,9 @@ app_input :: proc(app: ^App) -> bool {
 
 	handled := false
 	if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.F) {
+		if app.file_picker.visible {
+			app.find.editor = &app.file_picker.content
+		}
 		find_show(&app.find, editor_selected_text(editor))
 		handled = true
 	}
@@ -181,6 +185,19 @@ app_input :: proc(app: ^App) -> bool {
 		}
 		handled = true
 	}
+	else if rl.IsKeyPressed(.ESCAPE) {
+		if app.file_picker.visible {
+			file_picker_hide(&app.file_picker)
+			app.find.editor = &app.editors[app.editor_index]
+			find_matches(&app.find)
+			handled = true
+		}
+		else if app.find.visible {
+			find_cancel(&app.find)
+			handled = true
+		}
+	}
+
 	return handled
 }
 
