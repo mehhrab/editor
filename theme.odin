@@ -9,6 +9,7 @@ Theme :: struct {
 	text2: rl.Color,
 	caret: rl.Color,
 	selection: rl.Color,
+	highlight: rl.Color,
 	using syntax: Syntax,
 }
 
@@ -25,8 +26,9 @@ THEME_DEFAULT :: Theme {
 	bg_dim = { 20, 20, 20, 255 },
 	text = rl.WHITE,
 	text2 = rl.GRAY,
-	selection = { 70, 70, 70, 255 },
+	selection = { 80, 80, 80, 255 },
 	caret = rl.SKYBLUE,
+	highlight = { 255, 255, 255, 15 },
 	syntax = {
 		default = rl.SKYBLUE,
 		symbol = rl.WHITE,

@@ -17,6 +17,7 @@ Editor :: struct {
 	scroll_x: f32,
 	scroll_y: f32,
 	lexer: tokenizer.Tokenizer,
+	highlighted_ranges: [dynamic]Range,
 	highlight: bool,
 	hightlight_line: bool,
 	line_numbers: bool,
@@ -41,6 +42,7 @@ editor_deinit :: proc(editor: ^Editor) {
 	buffer_deinit(&editor.buffer)
 	delete(editor.path)
 	delete(editor.name)
+	delete(editor.highlighted_ranges)
 }
 
 editor_selected_text :: proc(editor: ^Editor) -> string {
@@ -395,6 +397,13 @@ editor_draw :: proc(editor: ^Editor) {
 		if cursor_range.start <= char_index && char_index < cursor_range.end {
 			rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, theme.selection)
 		} 
+
+		// draw highlighted ranges
+		for range in editor.highlighted_ranges {
+			if range.start <= char_index && char_index < range.end {
+				rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, theme.highlight)
+			}
+		}
 
 		// draw text
 		rl.DrawTextEx(font^, char_cstring, { char_x, char_y }, 40, 0, char_color)

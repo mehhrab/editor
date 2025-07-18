@@ -30,7 +30,9 @@ find_matches :: proc(find: ^Find) {
 	editor := find.editor
 	
 	clear(&find.matches)
+	clear(&find.editor.highlighted_ranges)
 	find.match_index = 0
+
 	word := string(find.input.buffer.content[:])
 	if word != "" {		
 		i := 0
@@ -46,7 +48,9 @@ find_matches :: proc(find: ^Find) {
 				i += 1
 			}
 			if matched {
-				append(&find.matches, Range { match_start, i })
+				range := Range { match_start, i }
+				append(&find.matches, range)
+				append(&find.editor.highlighted_ranges, range)
 			}
 			i += 1
 		}
@@ -131,6 +135,7 @@ find_show :: proc(find: ^Find, word := "") {
 }
 
 find_hide :: proc(find: ^Find) {
+	clear(&find.editor.highlighted_ranges)
 	find.visible = false
 }
 
