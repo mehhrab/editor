@@ -165,6 +165,10 @@ app_input :: proc(app: ^App) -> bool {
 		app_focus_editor(app, (app.editor_index + 1) % len(app.editors)) 
 		handled = true
 	}
+	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.N) {
+		app_new_file(app)
+		handled = true
+	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.W) {
 		if 1 < len(app.editors) {			
 			editor_deinit(&app.editors[app.editor_index])
@@ -174,6 +178,21 @@ app_input :: proc(app: ^App) -> bool {
 		handled = true
 	}
 	return handled
+}
+
+app_new_file :: proc(app: ^App, content := "") -> int {
+	append(&app.editors, Editor {})
+	index := len(app.editors) - 1
+	editor := &app.editors[index]
+
+	buffer: Buffer; buffer_init(&buffer, content)
+	editor_init(editor, app, &buffer, "", "*untitled*")
+	editor.highlight = true
+	editor.line_numbers = true
+
+	app_focus_editor(app, index)
+	
+	return index
 }
 
 app_open_file :: proc(app: ^App, path: string) -> int {
