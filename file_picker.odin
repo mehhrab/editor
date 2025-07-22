@@ -10,6 +10,16 @@ File_Picker :: struct {
 	content: Editor,
 	visible: bool,
 	dir: string,
+	
+	events: [dynamic]File_Picker_Event,
+}
+
+File_Picker_Event :: union {
+	File_Picker_Selected,
+}
+
+File_Picker_Selected :: struct {
+	path: string,
 }
 
 file_picker_init :: proc(file_picker: ^File_Picker, app: ^App, dir: string) {
@@ -29,6 +39,7 @@ file_picker_init :: proc(file_picker: ^File_Picker, app: ^App, dir: string) {
 file_picker_deinit :: proc(file_picker: ^File_Picker) {
 	delete(file_picker.dir)
 	editor_deinit(&file_picker.content)
+	delete(file_picker.events)
 }
 
 file_picker_show :: proc(file_picker: ^File_Picker) {
@@ -40,13 +51,14 @@ file_picker_hide :: proc(file_picker: ^File_Picker) {
 }
 
 // TODO: clean this whole thing
-file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.allocator) -> (bool, string) {
+file_picker_input :: proc(file_picker: ^File_Picker) -> ([]File_Picker_Event, bool) {
+	clear(&file_picker.events)
+
 	if file_picker.visible == false {
-		return false, strings.clone("", allocator)
+		return file_picker.events[:], false
 	}
 
 	handled := false
-	selected := ""
 
 	if rl.IsKeyPressed(.ENTER) {
 		line := editor_line_from_pos(&file_picker.content, file_picker.content.cursor.head)
@@ -77,8 +89,9 @@ file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.alloca
 			handled = true
 		}
 		else if os.is_file(full_path) {
-			selected = full_path 
-			file_picker.visible = false
+			append(&file_picker.events, File_Picker_Selected {
+				path = full_path
+			})
 			handled = true
 		}
 		else {
@@ -91,9 +104,10 @@ file_picker_input :: proc(file_picker: ^File_Picker, allocator := context.alloca
 	}
 	else if (key_pressed_or_repeated(.DOWN) || key_pressed_or_repeated(.UP)) &&
 	rl.IsKeyDown(.LEFT_SHIFT) == false {
-		handled = editor_input(&file_picker.content)
+		editor_input(&file_picker.content)
+		handled = true
 	}
-	return handled, strings.clone(selected, allocator)
+	return file_picker.events[:], handled
 }
 
 file_picker_draw :: proc(file_picker: ^File_Picker) {

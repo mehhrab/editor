@@ -11,10 +11,18 @@ App :: struct {
 	theme: Theme,
 	font: rl.Font,
 	font_size: f32,
+	
 	editors: [dynamic]Editor,
 	editor_index: int,
+	
 	find: Find,
+	// might move these outta here idk
+	cursor_before_search: Cursor,
+	scroll_x_before_search: f32,
+	scroll_y_before_search: f32,
+	
 	file_picker: File_Picker,
+	
 	chars_pressed: [dynamic]rune,
 }
 
@@ -64,7 +72,7 @@ app_main :: proc() {
 
 	app_open_file(&app, join_paths({ current_dir, "app.odin" }))
 
-	find_init(&app.find, &app, &app.editors[app.editor_index])
+	find_init(&app.find, &app)
 	defer find_deinit(&app.find)
 
 	file_picker_init(&app.file_picker, &app, current_dir)
@@ -86,19 +94,45 @@ app_main :: proc() {
 		file_picker_rect.y = screen_rect.height / 2 - file_picker_rect.height / 2
 		file_picker_set_rect(&app.file_picker, file_picker_rect)
 
-		handled := false
-		handled = find_input(&app.find)
+		handled := app_input(&app)
+
 		if handled == false {
-			selected: string
-			handled, selected = file_picker_input(&app.file_picker, context.temp_allocator)
-			if selected != "" {
-				app_open_file(&app, selected)
+			find_events: []Find_Event
+			find_events, handled = find_input(&app.find)
+			
+			for event in find_events {
+				switch kind in event {
+					case Find_New_Match: {
+						editor_select(app_editor(&app), kind.range)	
+					}
+					case Find_All_Matches: {
+						clear(&app_editor(&app).highlighted_ranges)
+						append(&app_editor(&app).highlighted_ranges, ..kind.matches)
+					}
+					case Find_Confirm: {
+						app_find_hide(&app)
+					}
+				}
 			}
 		}
+
 		if handled == false {
-			handled = app_input(&app)
+			file_picker_events: []File_Picker_Event
+			file_picker_events, handled = file_picker_input(&app.file_picker)
+
+			for event in file_picker_events {
+				switch kind in event {
+					case File_Picker_Selected: {
+						app_open_file(&app, kind.path)
+						file_picker_hide(&app.file_picker)						
+					}
+				}
+			}
 		}
-		if handled == false {
+
+		no_popup_open := app.find.visible == false && app.file_picker.visible == false
+		
+		if handled == false && no_popup_open {
 			editor_input(&app.editors[app.editor_index])
 		}
 
@@ -155,14 +189,11 @@ app_input :: proc(app: ^App) -> bool {
 
 	handled := false
 	if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.F) {
-		if app.file_picker.visible {
-			app.find.editor = &app.file_picker.content
-		}
-		find_show(&app.find, editor_selected_text(editor))
+		app_find_show(app)
 		handled = true
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.P) {
-		file_picker_show(&app.file_picker)
+		app_file_picker_show(app)
 		handled = true
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.TAB) {
@@ -186,14 +217,12 @@ app_input :: proc(app: ^App) -> bool {
 		handled = true
 	}
 	else if rl.IsKeyPressed(.ESCAPE) {
-		if app.file_picker.visible {
-			file_picker_hide(&app.file_picker)
-			app.find.editor = &app.editors[app.editor_index]
-			find_matches(&app.find)
+		if app.find.visible {
+			app_find_cancel(app)
 			handled = true
 		}
-		else if app.find.visible {
-			find_cancel(&app.find)
+		else if app.file_picker.visible {
+			app_file_picker_hide(app)
 			handled = true
 		}
 	}
@@ -251,10 +280,67 @@ app_save_file :: proc(app: ^App, index: int) {
 
 app_focus_editor :: proc(app: ^App, index: int) {
 	app.editor_index = index
-	app.find.editor = &app.editors[app.editor_index]
 	if app.find.visible {
-		find_matches(&app.find)
+		app_find_show(app)
 	}
+}
+
+app_find_show :: proc(app: ^App) {
+	editor := app_editor(app)
+	
+	find_set_text(&app.find, string(editor.buffer.content[:]))
+	find_show(&app.find, editor_selected_text(editor))
+	
+	clear(&editor.highlighted_ranges)
+	append(&editor.highlighted_ranges, ..find_calc_matches(&app.find))
+
+	app.cursor_before_search = editor.cursor
+	app.scroll_x_before_search = editor.scroll_x
+	app.scroll_y_before_search = editor.scroll_y
+}
+
+app_find_hide :: proc(app: ^App) {
+	clear(&app_editor(app).highlighted_ranges)
+	find_hide(&app.find)
+}
+
+app_find_cancel :: proc(app: ^App) {
+	editor := app_editor(app)
+
+	editor.cursor = app.cursor_before_search 
+	editor.scroll_x = app.scroll_x_before_search 
+	editor.scroll_y = app.scroll_y_before_search 
+
+	app_find_hide(app)
+}
+
+app_find_next :: proc(app: ^App) {
+	_, match := find_next(&app.find)
+	editor_select(app_editor(app), match)
+}
+
+app_file_picker_show :: proc(app: ^App) {
+	app_find_cancel(app)
+	file_picker_show(&app.file_picker)
+}
+
+app_file_picker_hide :: proc(app: ^App) {
+	file_picker_hide(&app.file_picker)
+}
+
+app_code_editor :: proc(app: ^App) -> ^Editor {
+	return &app.editors[app.editor_index]
+}
+
+app_editor :: proc(app: ^App) -> ^Editor {
+	current_editor: ^Editor = nil
+	if app.file_picker.visible {
+		current_editor = &app.file_picker.content
+	}
+	else {
+		current_editor = &app.editors[app.editor_index]
+	}
+	return current_editor	
 }
 
 key_pressed_or_repeated :: proc(key: rl.KeyboardKey) -> bool {

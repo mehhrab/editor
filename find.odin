@@ -2,21 +2,42 @@ package editor
 
 import rl "vendor:raylib"
 import "core:fmt"
+import "core:strings"
 
 Find :: struct {
-	editor: ^Editor,
-	visible: bool,
+	app: ^App,
+	
 	input: Editor,
+	
 	word: string,
+	text: string,
+	
 	matches: [dynamic]Range,
 	match_index: int,
-	cursor_before_search: Cursor,
-	scroll_x_before_search: f32,
-	scroll_y_before_search: f32,
+	
+	events: [dynamic]Find_Event,
+	visible: bool,
 }
 
-find_init :: proc(find: ^Find, app: ^App, editor: ^Editor) {
-	find.editor = editor
+Find_Event :: union {
+	Find_New_Match,
+	Find_All_Matches,
+	Find_Confirm,
+}
+
+Find_All_Matches :: struct {
+	matches: []Range,
+}
+
+Find_New_Match :: struct {
+	index: int,
+	range: Range,
+}
+
+Find_Confirm :: struct {}
+
+find_init :: proc(find: ^Find, app: ^App) {
+	find.app = app
 	buffer: Buffer; buffer_init(&buffer, "")
 	editor_init(&find.input, app, &buffer, "", "")
 }
@@ -24,23 +45,21 @@ find_init :: proc(find: ^Find, app: ^App, editor: ^Editor) {
 find_deinit :: proc(find: ^Find) {
 	editor_deinit(&find.input)
 	delete(find.matches)
+	delete(find.events)
 }
 
-find_matches :: proc(find: ^Find) {
-	editor := find.editor
-	
+find_calc_matches :: proc(find: ^Find) -> []Range {	
 	clear(&find.matches)
-	clear(&find.editor.highlighted_ranges)
 	find.match_index = 0
 
 	word := string(find.input.buffer.content[:])
-	if word != "" {		
+	if word != "" {
 		i := 0
-		for i < len(editor.buffer.content) {
+		for i < len(find.text) {
 			matched := true
 			match_start := i
 			for w in word {
-				char := editor.buffer.content[i]
+				char := find.text[i]
 				if rune(char) != w {
 					matched = false
 					break
@@ -50,63 +69,94 @@ find_matches :: proc(find: ^Find) {
 			if matched {
 				range := Range { match_start, i }
 				append(&find.matches, range)
-				append(&find.editor.highlighted_ranges, range)
 			}
 			i += 1
 		}
 	}
+
+	return find.matches[:]
 }
 
-find_next :: proc(find: ^Find) {
-	editor := find.editor
+find_next :: proc(find: ^Find) -> (int, Range) {
+	index := 0
+	range := Range {}
 	if len(find.matches) != 0 {		
-		editor_goto(editor, find.matches[find.match_index].start)	
-		editor_goto(editor, find.matches[find.match_index].end, true)	
+		// // center found match vertically
+		// line_index := editor_line_from_pos(editor, find.matches[find.match_index].start)
+		// editor.scroll_y = -(f32(line_index) * 40 - f32(rl.GetScreenHeight()) / 2)  
+		// if editor.scroll_y > 0 {
+		// 	editor.scroll_y = 0
+		// }
 
-		// center found match vertically
-		line_index := editor_line_from_pos(editor, find.matches[find.match_index].start)
-		editor.scroll_y = -(f32(line_index) * 40 - f32(rl.GetScreenHeight()) / 2)  
-		if editor.scroll_y > 0 {
-			editor.scroll_y = 0
-		}
-
+		// find.match_index = (find.match_index + 1) % len(find.matches)
+		// append(&find.events, Find_New_Match {
+		// 	range = find.matches[find.match_index]
+		// })
+		index = find.match_index
+		range = find.matches[index]
 		find.match_index = (find.match_index + 1) % len(find.matches)
 	}
 	else {
 		fmt.printfln("no match")
 	}
+
+	return index, range
 }
 
-find_input :: proc(find: ^Find) -> bool {
-	app := find.editor.app
+find_input :: proc(find: ^Find) -> ([]Find_Event, bool) {	
+	app := find.app
 	
+	clear(&find.events)
+
 	if find.visible == false {
-		return false
+		return find.events[:], false
 	}
 
 	handled := false
-	if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.N) {
-		find_next(find)
+	if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.ENTER) {
+		append(&find.events, Find_Confirm {})
 		handled = true
 	}
 	else if rl.IsKeyPressed(.ENTER) {
-		find_hide(find)
+		index, range := find_next(find)
+		append(&find.events, Find_New_Match {
+			index = index,
+			range = range
+		})
 		handled = true
 	}
 	else {
 		handled = editor_input(&find.input)
 		if rl.IsKeyPressed(.BACKSPACE) {
-			find_matches(find)
-			find_next(find)
+			matches := find_calc_matches(find)
+			append(&find.events, Find_All_Matches {
+				matches = matches,
+			})
+
+			index, range := find_next(find)
+			append(&find.events, Find_New_Match {
+				index = index,
+				range = range
+			})
+			
 			handled = true
 		}
 		for char in app.chars_pressed {
-			find_matches(find)
-			find_next(find)
+			matches := find_calc_matches(find)
+			append(&find.events, Find_All_Matches {
+				matches = matches,
+			})
+
+			index, range := find_next(find)
+			append(&find.events, Find_New_Match {
+				index = index, 
+				range = range
+			})
+			
 			handled = true
 		}
 	}
-	return handled
+	return find.events[:], handled
 }
 
 find_draw :: proc(find: ^Find) {
@@ -116,10 +166,6 @@ find_draw :: proc(find: ^Find) {
 
 find_show :: proc(find: ^Find, word := "") {
 	find.visible = true
-	
-	find.cursor_before_search = find.editor.cursor
-	find.scroll_x_before_search = find.editor.scroll_x
-	find.scroll_y_before_search = find.editor.scroll_y
 
 	if word != "" {
 		editor_select(&find.input, editor_all(&find.input))
@@ -127,21 +173,13 @@ find_show :: proc(find: ^Find, word := "") {
 		editor_insert(&find.input, word)
 	}
 	editor_select(&find.input, editor_all(&find.input))
-	
-	find_matches(find)
-	if word != "" {
-		find_next(find)
-	}
 }
 
 find_hide :: proc(find: ^Find) {
-	clear(&find.editor.highlighted_ranges)
 	find.visible = false
 }
 
-find_cancel :: proc(find: ^Find) {
-	find.editor.cursor = find.cursor_before_search
-	find.editor.scroll_x = find.scroll_x_before_search
-	find.editor.scroll_y = find.scroll_y_before_search
-	find_hide(find)
+find_set_text :: proc(find: ^Find, text: string) {
+	delete(find.text)
+	find.text = strings.clone(text)
 }

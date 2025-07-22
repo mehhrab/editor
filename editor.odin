@@ -9,18 +9,24 @@ import "core:math"
 
 Editor :: struct {
 	app: ^App,
+
 	path: string,
 	name: string,
+
 	buffer: Buffer,
+	
 	cursor: Cursor,
 	hide_cursor: bool,
 	scroll_x: f32,
 	scroll_y: f32,
+
 	lexer: tokenizer.Tokenizer,
 	highlighted_ranges: [dynamic]Range,
+	
 	highlight: bool,
 	hightlight_line: bool,
 	line_numbers: bool,
+	
 	rect: rl.Rectangle,
 	active: bool,
 }
@@ -213,14 +219,12 @@ editor_input :: proc(editor: ^Editor) -> bool {
 		if editor_has_selection(editor) {
 			range := cursor_to_range(&editor.cursor)
 			text := string(editor.buffer.content[range.start:range.end])
-			// text = strings.join({ text, "\n" }, "", context.temp_allocator)
 			rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
 		}
 		else {
 			line := editor_line_from_pos(editor, editor.cursor.head)
 			range := editor.buffer.line_ranges[line]
 			text := string(editor.buffer.content[range.start:range.end])
-			// text = strings.join({ text, "\n" }, "", context.temp_allocator)
 			rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
 		}
 		handled = true
@@ -229,18 +233,12 @@ editor_input :: proc(editor: ^Editor) -> bool {
 		range := Range {}
 		if editor_has_selection(editor) {
 			range = cursor_to_range(&editor.cursor)
-			// if range.end < len(editor.buffer.content) {
-			// 	range.end += 1
-			// }
 			text := string(editor.buffer.content[range.start:range.end])
 			rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
 		}
 		else {
 			line := editor_line_from_pos(editor, editor.cursor.head)
 			range = editor.buffer.line_ranges[line]
-			// if range.end < len(editor.buffer.content) {
-			// 	range.end += 1
-			// }
 			text := string(editor.buffer.content[range.start:range.end])
 			rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
 		}
@@ -286,9 +284,6 @@ editor_draw :: proc(editor: ^Editor) {
 		editor.rect.width - lines_rect.width - pad,
 		editor.rect.height,
 	}
-	// code_rect_margined := code_rect
-	// code_rect_margined.x += 30
-	// code_rect_margined.width -= 30
 
 	rl.DrawRectangleRec(editor.rect, theme.bg)
 	
