@@ -9,7 +9,6 @@ Find :: struct {
 	
 	input: Editor,
 	
-	word: string,
 	text: string,
 	
 	matches: [dynamic]Range,
@@ -46,6 +45,7 @@ find_deinit :: proc(find: ^Find) {
 	editor_deinit(&find.input)
 	delete(find.matches)
 	delete(find.events)
+	delete(find.text)
 }
 
 find_calc_matches :: proc(find: ^Find) -> []Range {	

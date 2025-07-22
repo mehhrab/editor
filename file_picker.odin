@@ -78,11 +78,11 @@ file_picker_input :: proc(file_picker: ^File_Picker) -> ([]File_Picker_Event, bo
 			parent_path := parent_path(file_picker.dir)
 			items: []string
 			if strings.ends_with(file_picker.dir, ":") {
-				items = file_picker_items_from_drives()
+				items = file_picker_items_from_drives(context.temp_allocator)
 				file_picker_set_dir(file_picker, "")
 			}
 			else {
-				items = file_picker_items_from_dir(parent_path)
+				items = file_picker_items_from_dir(parent_path, context.temp_allocator)
 				file_picker_set_dir(file_picker, parent_path)
 			}
 			file_picker_update_content(file_picker, items)

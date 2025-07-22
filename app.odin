@@ -70,7 +70,7 @@ app_main :: proc() {
 		delete(app.editors)
 	}
 
-	app_open_file(&app, join_paths({ current_dir, "app.odin" }))
+	app_open_file(&app, join_paths({ current_dir, "app.odin" }, context.temp_allocator))
 
 	find_init(&app.find, &app)
 	defer find_deinit(&app.find)
