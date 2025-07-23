@@ -86,7 +86,7 @@ app_main :: proc() {
 		}
 
 		screen_rect := rl.Rectangle { 0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()) }
-		app.editors[app.editor_index].rect = { 0, 41, screen_rect.width, screen_rect.height - 40 }
+		app_code_editor(&app).rect = { 0, 41, screen_rect.width, screen_rect.height - 40 }
 		app.find.input.rect = { 0, screen_rect.height - 40, screen_rect.width, 40 }
 		
 		file_picker_rect := rl.Rectangle { 0, 0, 700, 400 }
@@ -134,7 +134,7 @@ app_main :: proc() {
 		no_popup_open := app.find.visible == false && app.file_picker.visible == false
 		
 		if handled == false && no_popup_open {
-			editor_input(&app.editors[app.editor_index])
+			editor_input(app_code_editor(&app))
 		}
 
 		rl.BeginDrawing()
@@ -168,7 +168,7 @@ app_main :: proc() {
 			rl.EndScissorMode()
 		}
 		
-		editor_draw(&app.editors[app.editor_index])
+		editor_draw(app_code_editor(&app))
 		
 		if app.find.visible {
 			find_draw(&app.find)
@@ -186,8 +186,6 @@ app_main :: proc() {
 }
 
 app_input :: proc(app: ^App) -> bool {
-	editor := &app.editors[app.editor_index]
-
 	handled := false
 	if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.F) {
 		app_find_show(app)
@@ -342,7 +340,7 @@ app_editor :: proc(app: ^App) -> ^Editor {
 		current_editor = &app.file_picker.content
 	}
 	else {
-		current_editor = &app.editors[app.editor_index]
+		current_editor = app_code_editor(app)
 	}
 	return current_editor	
 }
