@@ -81,25 +81,10 @@ find_next :: proc(find: ^Find) -> (int, Range) {
 	index := 0
 	range := Range {}
 	if len(find.matches) != 0 {		
-		// // center found match vertically
-		// line_index := editor_line_from_pos(editor, find.matches[find.match_index].start)
-		// editor.scroll_y = -(f32(line_index) * 40 - f32(rl.GetScreenHeight()) / 2)  
-		// if editor.scroll_y > 0 {
-		// 	editor.scroll_y = 0
-		// }
-
-		// find.match_index = (find.match_index + 1) % len(find.matches)
-		// append(&find.events, Find_New_Match {
-		// 	range = find.matches[find.match_index]
-		// })
 		index = find.match_index
 		range = find.matches[index]
 		find.match_index = (find.match_index + 1) % len(find.matches)
 	}
-	else {
-		fmt.printfln("no match")
-	}
-
 	return index, range
 }
 
