@@ -104,6 +104,7 @@ app_main :: proc() {
 				switch kind in event {
 					case Find_New_Match: {
 						editor_select(app_editor(&app), kind.range)	
+						editor_scroll_center_v(app_editor(&app), kind.range.start)
 					}
 					case Find_All_Matches: {
 						clear(&app_editor(&app).highlighted_ranges)
@@ -317,6 +318,7 @@ app_find_cancel :: proc(app: ^App) {
 app_find_next :: proc(app: ^App) {
 	_, match := find_next(&app.find)
 	editor_select(app_editor(app), match)
+	editor_scroll_center_v(app_editor(app), match.start)
 }
 
 app_file_picker_show :: proc(app: ^App) {

@@ -473,6 +473,15 @@ get_color_for_token :: proc(syntax: ^Syntax, kind: tokenizer.Token_Kind) -> rl.C
 	return color
 }
 
+// TODO: add horizontal version of this
+editor_scroll_center_v :: proc(editor: ^Editor, pos: int) {
+	line_index := editor_line_from_pos(editor, pos)
+	editor.scroll_y = -(f32(line_index) * 40 - f32(rl.GetScreenHeight()) / 2)  
+	if editor.scroll_y > 0 {
+		editor.scroll_y = 0
+	}
+}
+
 col_visual_to_real :: proc(editor: ^Editor, line: int) -> int {
 	line_range := editor.buffer.line_ranges[line]
 	col := 0
