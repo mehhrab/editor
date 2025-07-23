@@ -291,9 +291,11 @@ editor_input :: proc(editor: ^Editor) -> bool {
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.Z) {
 		editor_undo(editor)
+		handled = true
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.Y) {
 		editor_redo(editor)
+		handled = true
 	}
 	else {		
 		for char in editor.app.chars_pressed {			
