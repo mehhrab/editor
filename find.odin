@@ -102,7 +102,7 @@ find_input :: proc(find: ^Find) -> ([]Find_Event, bool) {
 		append(&find.events, Find_Confirm {})
 		handled = true
 	}
-	else if rl.IsKeyPressed(.ENTER) {
+	else if key_pressed_or_repeated(.ENTER) {
 		index, range := find_next(find)
 		append(&find.events, Find_New_Match {
 			index = index,
