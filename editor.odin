@@ -27,6 +27,9 @@ Editor :: struct {
 	hightlight_line: bool,
 	line_numbers: bool,
 	
+	undos: [dynamic]Undo,
+	undo_index: int,
+
 	rect: rl.Rectangle,
 	active: bool,
 }
@@ -35,6 +38,18 @@ Cursor :: struct {
 	head: int,
 	anchor: int,
 	last_col: int,
+}
+
+Undo :: struct {
+	kind: Undo_Kind,
+	text: string,
+	change_range: Range,
+	time: f32,
+}
+
+Undo_Kind :: enum {
+	Insert,
+	Delete,
 }
 
 editor_init :: proc(editor: ^Editor, app: ^App, buffer: ^Buffer, path, name: string) {
@@ -49,6 +64,10 @@ editor_deinit :: proc(editor: ^Editor) {
 	delete(editor.path)
 	delete(editor.name)
 	delete(editor.highlighted_ranges)
+	for &undo in editor.undos {
+		undo_deinit(&undo)
+	}
+	delete(editor.undos)
 }
 
 editor_selected_text :: proc(editor: ^Editor) -> string {
@@ -110,21 +129,39 @@ editor_clamp_in_line :: proc(editor: ^Editor, pos, line: int) -> int {
 	return clamp(pos, editor.buffer.line_ranges[line].start, editor.buffer.line_ranges[line].end)
 }
 
-editor_insert :: proc(editor: ^Editor, text: string, goto_end := true) {
+editor_insert :: proc(editor: ^Editor, text: string, goto_end := true) -> Range {
+	change_range := editor_insert_raw(editor, text, goto_end)
+	editor_push_undo(editor, .Insert, change_range, text)
+	return change_range
+}
+
+editor_insert_raw :: proc(editor: ^Editor, text: string, goto_end := true) -> Range {
+	change_range := Range { editor.cursor.head, editor.cursor.head + len(text) }
+	
 	inject_at_elems(&editor.buffer.content, editor.cursor.head, ..transmute([]byte)text)
 	buffer_calc_line_ranges(&editor.buffer)
 	if goto_end {
 		editor_goto(editor, editor.cursor.head + len(text))
 	}
+
+	return change_range
 }
 
 editor_delete :: proc(editor: ^Editor, goto_start := true) {
-	cursor_range := cursor_to_range(&editor.cursor)
-	remove_range(&editor.buffer.content, cursor_range.start, cursor_range.end)
+	// clone this since we are gonna remove the selection one line later
+	text := strings.clone(editor_selected_text(editor), context.temp_allocator)
+	change_range := editor_delete_raw(editor, goto_start)	
+	editor_push_undo(editor, .Delete, change_range, text)
+}
+
+editor_delete_raw :: proc(editor: ^Editor, goto_start := true) -> Range {
+	change_range := cursor_to_range(&editor.cursor)
+	remove_range(&editor.buffer.content, change_range.start, change_range.end)
 	buffer_calc_line_ranges(&editor.buffer)
 	if goto_start {
-		editor_goto(editor, cursor_range.start)
+		editor_goto(editor, change_range.start)
 	}
+	return change_range
 }
 
 editor_clear :: proc(editor: ^Editor) {
@@ -251,6 +288,12 @@ editor_input :: proc(editor: ^Editor) -> bool {
 		text := strings.clone_from_cstring(rl.GetClipboardText(), context.temp_allocator)
 		editor_insert(editor, text)
 		handled = true
+	}
+	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.Z) {
+		editor_undo(editor)
+	}
+	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.Y) {
+		editor_redo(editor)
 	}
 	else {		
 		for char in editor.app.chars_pressed {			
@@ -524,4 +567,76 @@ col_real_to_visual :: proc(editor: ^Editor, line: int) -> int {
 		}
 	}
 	return col
+}
+
+editor_undo :: proc(editor: ^Editor) {
+	for 1 <= editor.undo_index {
+		editor.undo_index -= 1
+		undo := editor.undos[editor.undo_index]
+
+		if undo.kind == .Insert {
+			editor_select(editor, undo.change_range)
+			editor_delete_raw(editor)
+		}
+		else if undo.kind == .Delete {
+			editor_goto(editor, undo.change_range.start)
+			editor_insert_raw(editor, undo.text)
+			editor_select(editor, undo.change_range)
+		}
+		
+		can_be_mereged := 1 <= editor.undo_index && 
+		(undo.time - editor.undos[editor.undo_index - 1].time) < 0.3
+
+		if can_be_mereged {
+			continue
+		}
+		else {
+			break
+		}
+	}
+}
+
+editor_redo :: proc(editor: ^Editor) {
+	for editor.undo_index <= len(editor.undos) - 1 {
+		undo := editor.undos[editor.undo_index]
+
+		if undo.kind == .Insert {
+			editor_insert_raw(editor, undo.text)
+		}
+		else if undo.kind == .Delete {
+			editor_select(editor, undo.change_range)
+			editor_delete_raw(editor)
+		}
+
+		can_be_mereged := editor.undo_index + 1 <= len(editor.undos) - 1 && 
+		(editor.undos[editor.undo_index + 1].time - undo.time) < 0.3
+
+		editor.undo_index += 1
+
+		if can_be_mereged {
+			continue
+		}
+		else {
+			break
+		}
+	}
+}
+
+editor_push_undo :: proc(editor: ^Editor, kind: Undo_Kind, range: Range, text: string) {
+	for i := len(editor.undos) - 1; editor.undo_index <= i; i -= 1 {
+		undo := pop(&editor.undos)
+		undo_deinit(&undo)
+	}
+
+	append(&editor.undos, Undo {
+		kind = kind,
+		change_range = range,
+		text = strings.clone(text),
+		time = f32(rl.GetTime()),
+	})
+	editor.undo_index += 1
+}
+
+undo_deinit :: proc(undo: ^Undo) {
+	delete(undo.text)
 }
