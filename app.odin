@@ -320,7 +320,9 @@ app_find_next :: proc(app: ^App) {
 }
 
 app_file_picker_show :: proc(app: ^App) {
-	app_find_cancel(app)
+	if app.find.visible {
+		app_find_cancel(app)
+	}
 	file_picker_show(&app.file_picker)
 }
 
