@@ -8,7 +8,7 @@ import rl "vendor:raylib"
 Commands :: struct {
 	app: ^App,
 	input: Editor,
-	content: Editor,
+	list: List,
 	items: [dynamic]string,
 	sorted_items: [dynamic]Command_Sorted,
 	events: [dynamic]Commands_Event,
@@ -37,11 +37,7 @@ commands_init :: proc(commands: ^Commands, app: ^App, items: []string) {
 		editor_init(&commands.input, app, &buffer, "", "")
 	}
 	{
-		text := "new file\nopen file\nshow explorer\nclose window"
-		buffer: Buffer; buffer_init(&buffer)
-		editor_init(&commands.content, app, &buffer, "", "")
-		commands.content.hide_cursor = true
-		commands.content.hightlight_line = true
+		list_init(&commands.list, app)
 
 		for item, i in items {
 			append(&commands.items, strings.clone(item))
@@ -52,13 +48,9 @@ commands_init :: proc(commands: ^Commands, app: ^App, items: []string) {
 		}
 
 		for item, i in commands.sorted_items {
-			editor_insert_raw(&commands.content, item.name)
-			if i != len(items) - 1 {
-				editor_insert_raw(&commands.content, "\n") 
-			}
+			list_add_items(&commands.list, { item.name })
 		}
-
-		editor_goto(&commands.content, 0)
+		list_set_current_item(&commands.list, 0)
 	}
 }
 
@@ -68,7 +60,7 @@ commands_deinit :: proc(commands: ^Commands) {
 		delete(item)
 	}
 	delete(commands.items)
-	editor_deinit(&commands.content)
+	list_deinit(&commands.list)
 	editor_deinit(&commands.input)
 	delete(commands.events)
 }
@@ -81,28 +73,26 @@ commands_input :: proc(commands: ^Commands) -> ([]Commands_Event, bool) {
 		return commands.events[:], false
 	}
 
-	if rl.IsKeyDown(.LEFT_SHIFT) == false &&
-	(key_pressed_or_repeated(.DOWN) ||
-	key_pressed_or_repeated(.UP)) {
-		handled = editor_input(&commands.content)
-	}
-	else if key_pressed_or_repeated(.ENTER) {
-		if 1 <= len(commands.sorted_items) {			
-			index := editor_line_from_pos(&commands.content, commands.content.cursor.head)
+	if key_pressed_or_repeated(.ENTER) {
+		if 1 <= len(commands.sorted_items) {
+			index, name := list_get_current_item(&commands.list, context.temp_allocator)			
 			command := commands.sorted_items[index]
 			append(&commands.events, Commands_Selected {
 				index = command.index,
-				name = command.name,
+				name = name,
 			})
-			commands.visible = false
 		}
 		handled = true
 	}
 	else {
-		handled = editor_input(&commands.input)
+		handled = list_input(&commands.list) 
+		if handled == false { 
+			handled = editor_input(&commands.input)
+		}
+
 		if len(commands.app.chars_pressed) != 0 {
 			commands_refresh(commands)
-			handled = true
+			handled = true 
 		}
 		if key_pressed_or_repeated(.BACKSPACE) {
 			commands_refresh(commands)
@@ -114,7 +104,7 @@ commands_input :: proc(commands: ^Commands) -> ([]Commands_Event, bool) {
 
 commands_refresh :: proc(commands: ^Commands) {
 	clear(&commands.sorted_items)
-	clear(&commands.content.highlighted_ranges)
+	clear(&commands.list.content.highlighted_ranges)
 
 	ranges := make([dynamic]Range)
 	RANGE_NEW_LINE :: Range { -1, -1 }
@@ -139,14 +129,11 @@ commands_refresh :: proc(commands: ^Commands) {
 		}
 	}
 
-	editor_clear(&commands.content)
+	list_clear(&commands.list)
 	for item, i in commands.sorted_items {
-		editor_insert_raw(&commands.content, item.name)
-		if i != len(commands.sorted_items) - 1 {
-			editor_insert_raw(&commands.content, "\n") 
-		}
+		list_add_items(&commands.list, { item.name })
 	}
-	editor_goto(&commands.content, 0)
+	list_set_current_item(&commands.list, 0)
 
 	line := 0
 	for range in ranges {
@@ -155,8 +142,8 @@ commands_refresh :: proc(commands: ^Commands) {
 			continue
 		}
 
-		line_start := commands.content.buffer.line_ranges[line].start
-		append(&commands.content.highlighted_ranges, Range {
+		line_start := commands.list.content.buffer.line_ranges[line].start
+		append(&commands.list.content.highlighted_ranges, Range {
 			start = line_start + range.start,
 			end = line_start + range.end,
 		})
@@ -165,18 +152,18 @@ commands_refresh :: proc(commands: ^Commands) {
 
 commands_draw :: proc(commands: ^Commands) {
 	editor_draw(&commands.input)
-	editor_draw(&commands.content)
 	rl.DrawRectangleLinesEx(commands.input.rect, 1, commands.app.theme.selection)
-	rl.DrawRectangleLinesEx(commands.content.rect, 1, commands.app.theme.selection)
+	list_draw(&commands.list)
 }
 
 commands_set_rect :: proc(commands: ^Commands, rect: rl.Rectangle) {
 	commands.input.rect = rect
 	commands.input.rect.height = 40
 
-	commands.content.rect = rect
-	commands.content.rect.y += 40	
-	commands.content.rect.height -= 40	
+	list_rect := rect
+	list_rect.y += 40	
+	list_rect.height -= 40
+	list_set_rect(&commands.list, list_rect)	
 }
 
 commands_show :: proc(commands: ^Commands) {

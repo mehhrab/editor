@@ -103,7 +103,7 @@ app_main :: proc() {
 		file_picker_rect.y = screen_rect.height / 2 - file_picker_rect.height / 2
 		file_picker_set_rect(&app.file_picker, file_picker_rect)
 
-		commands_set_rect(&app.commands, { screen_rect.width / 2 - 300 / 2, 50, 300, 500 })
+		commands_set_rect(&app.commands, { screen_rect.width / 2 - 600 / 2, 50, 600, 300 })
 
 		handled := app_input(&app)
 
@@ -135,6 +135,7 @@ app_main :: proc() {
 				switch kind in event {
 					case Commands_Selected: {
 						fmt.printfln("{}", kind)
+						app_commands_hide(&app)
 					}
 				}
 			}
@@ -389,7 +390,7 @@ app_code_editor :: proc(app: ^App) -> ^Editor {
 app_editor :: proc(app: ^App) -> ^Editor {
 	current_editor: ^Editor = nil
 	if app.file_picker.visible {
-		current_editor = &app.file_picker.content
+		current_editor = &app.file_picker.list.content
 	}
 	else {
 		current_editor = app_code_editor(app)

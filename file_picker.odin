@@ -7,7 +7,7 @@ import "core:fmt"
 
 File_Picker :: struct {
 	app: ^App,
-	content: Editor,
+	list: List,
 	visible: bool,
 	dir: string,
 	
@@ -26,11 +26,7 @@ file_picker_init :: proc(file_picker: ^File_Picker, app: ^App, dir: string) {
 	file_picker.app = app
 	file_picker_set_dir(file_picker, dir)
 
-	buffer: Buffer; buffer_init(&buffer, "")
-	editor_init(&file_picker.content, file_picker.app, &buffer, "", "")
-	file_picker.content.hightlight_line = true
-	file_picker.content.hide_cursor = true
-
+	list_init(&file_picker.list, app)
 	file_picker_update_content(
 		file_picker, 
 		file_picker_items_from_dir(file_picker.dir, context.temp_allocator))
@@ -38,7 +34,7 @@ file_picker_init :: proc(file_picker: ^File_Picker, app: ^App, dir: string) {
 
 file_picker_deinit :: proc(file_picker: ^File_Picker) {
 	delete(file_picker.dir)
-	editor_deinit(&file_picker.content)
+	list_deinit(&file_picker.list)
 	delete(file_picker.events)
 }
 
@@ -61,10 +57,8 @@ file_picker_input :: proc(file_picker: ^File_Picker) -> ([]File_Picker_Event, bo
 	handled := false
 
 	if rl.IsKeyPressed(.ENTER) {
-		line := editor_line_from_pos(&file_picker.content, file_picker.content.cursor.head)
-		line_range := file_picker.content.buffer.line_ranges[line]
-		text := string(file_picker.content.buffer.content[line_range.start:line_range.end])
-	
+		_, text := list_get_current_item(&file_picker.list, context.temp_allocator)
+
 		full_path: string = ---
 		if file_picker.dir != "" {
 			full_path = join_paths({ file_picker.dir, text }, context.temp_allocator)
@@ -102,10 +96,8 @@ file_picker_input :: proc(file_picker: ^File_Picker) -> ([]File_Picker_Event, bo
 			handled = true
 		}
 	}
-	else if (key_pressed_or_repeated(.DOWN) || key_pressed_or_repeated(.UP)) &&
-	rl.IsKeyDown(.LEFT_SHIFT) == false {
-		editor_input(&file_picker.content)
-		handled = true
+	else {
+		handled = list_input(&file_picker.list)
 	}
 	return file_picker.events[:], handled
 }
@@ -114,7 +106,7 @@ file_picker_draw :: proc(file_picker: ^File_Picker) {
 	theme := &file_picker.app.theme
 
 	padding := f32(20)
-	expanded_rect := file_picker.content.rect
+	expanded_rect := file_picker.list.rect
 	expanded_rect.x -= padding
 	expanded_rect.y -= padding
 	expanded_rect.width += padding * 2
@@ -126,7 +118,7 @@ file_picker_draw :: proc(file_picker: ^File_Picker) {
 	rl.DrawRectangleRec(shadow_rect, { 0, 0, 0, 255 })
 
 	rl.DrawRectangleRec(expanded_rect, theme.bg)
-	editor_draw(&file_picker.content)
+	list_draw(&file_picker.list)
 	rl.DrawRectangleLinesEx(expanded_rect, 1, theme.selection)
 }
 
@@ -158,20 +150,13 @@ file_picker_items_from_dir :: proc(dir: string, allocator := context.allocator) 
 }
 
 file_picker_update_content :: proc(file_picker: ^File_Picker, items: []string) {
-	editor_select(&file_picker.content, editor_all(&file_picker.content))
-	editor_delete(&file_picker.content)
-
-	for item, i in items {
-		editor_insert(&file_picker.content, item)
-		if i != len(items) - 1 {
-			editor_insert(&file_picker.content, "\n") 
-		}
-	}
-	editor_goto(&file_picker.content, 0)
+	list_clear(&file_picker.list)
+	list_add_items(&file_picker.list, items)
+	list_set_current_item(&file_picker.list, 0)
 }
 
 file_picker_set_rect :: proc(file_picker: ^File_Picker, rect: rl.Rectangle) {
-	file_picker.content.rect = rect
+	list_set_rect(&file_picker.list, rect)
 }
 
 file_picker_set_dir :: proc(file_picker: ^File_Picker, dir: string)
