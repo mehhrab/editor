@@ -22,6 +22,7 @@ App :: struct {
 	scroll_y_before_search: f32,
 	
 	file_picker: File_Picker,
+	commands: Commands, 
 	
 	chars_pressed: [dynamic]rune,
 }
@@ -78,6 +79,14 @@ app_main :: proc() {
 	file_picker_init(&app.file_picker, &app, current_dir)
 	defer file_picker_deinit(&app.file_picker)
 
+	commands_init(&app.commands, &app, { 
+		"New File",
+		"Open File",
+		"Start Search",
+		"Close File",
+	})
+	defer commands_deinit(&app.commands)
+
 	for rl.WindowShouldClose() == false {
 		char := rl.GetCharPressed();
 		for char != 0 {
@@ -93,6 +102,8 @@ app_main :: proc() {
 		file_picker_rect.x = screen_rect.width / 2 - file_picker_rect.width / 2
 		file_picker_rect.y = screen_rect.height / 2 - file_picker_rect.height / 2
 		file_picker_set_rect(&app.file_picker, file_picker_rect)
+
+		commands_set_rect(&app.commands, { screen_rect.width / 2 - 300 / 2, 50, 300, 500 })
 
 		handled := app_input(&app)
 
@@ -118,6 +129,18 @@ app_main :: proc() {
 		}
 
 		if handled == false {
+			events: []Commands_Event
+			events, handled = commands_input(&app.commands)
+			for event in events {
+				switch kind in event {
+					case Commands_Selected: {
+						fmt.printfln("{}", kind)
+					}
+				}
+			}
+		}
+
+		if handled == false {
 			file_picker_events: []File_Picker_Event
 			file_picker_events, handled = file_picker_input(&app.file_picker)
 
@@ -131,7 +154,9 @@ app_main :: proc() {
 			}
 		}
 
-		no_popup_open := app.find.visible == false && app.file_picker.visible == false
+		no_popup_open := app.find.visible == false && 
+		app.file_picker.visible == false &&
+		app.commands.visible == false
 		
 		if handled == false && no_popup_open {
 			editor_input(app_code_editor(&app))
@@ -170,6 +195,10 @@ app_main :: proc() {
 		
 		editor_draw(app_code_editor(&app))
 		
+		if app.commands.visible {
+			commands_draw(&app.commands)
+		}
+
 		if app.find.visible {
 			find_draw(&app.find)
 		}
@@ -192,6 +221,10 @@ app_input :: proc(app: ^App) -> bool {
 		handled = true
 	}
 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.P) {
+		app_commands_show(app)
+		handled = true
+	}
+	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.E) {
 		app_file_picker_show(app)
 		handled = true
 	}
@@ -222,6 +255,10 @@ app_input :: proc(app: ^App) -> bool {
 		}
 		else if app.file_picker.visible {
 			app_file_picker_hide(app)
+			handled = true
+		}
+		else if app.commands.visible {
+			app_commands_hide(app)
 			handled = true
 		}
 	}
@@ -285,6 +322,10 @@ app_focus_editor :: proc(app: ^App, index: int) {
 }
 
 app_find_show :: proc(app: ^App) {
+	if app.commands.visible {
+		app_commands_hide(app)
+	}
+	
 	editor := app_editor(app)
 	
 	find_set_text(&app.find, string(editor.buffer.content[:]))
@@ -323,11 +364,22 @@ app_file_picker_show :: proc(app: ^App) {
 	if app.find.visible {
 		app_find_cancel(app)
 	}
+	if app.commands.visible {
+		app_commands_hide(app)
+	}
 	file_picker_show(&app.file_picker)
 }
 
 app_file_picker_hide :: proc(app: ^App) {
 	file_picker_hide(&app.file_picker)
+}
+
+app_commands_show :: proc(app: ^App) {
+	commands_show(&app.commands)
+}
+
+app_commands_hide :: proc(app: ^App) {
+	commands_hide(&app.commands)
 }
 
 app_code_editor :: proc(app: ^App) -> ^Editor {
