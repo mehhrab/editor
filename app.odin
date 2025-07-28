@@ -376,6 +376,12 @@ app_file_picker_hide :: proc(app: ^App) {
 }
 
 app_commands_show :: proc(app: ^App) {
+	if app.find.visible {
+		app_find_cancel(app)
+	}
+	if app.file_picker.visible {
+		app_commands_hide(app)
+	}
 	commands_show(&app.commands)
 }
 
