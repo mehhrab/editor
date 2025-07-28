@@ -106,7 +106,7 @@ commands_refresh :: proc(commands: ^Commands) {
 	clear(&commands.sorted_items)
 	clear(&commands.list.content.highlighted_ranges)
 
-	ranges := make([dynamic]Range)
+	ranges := make([dynamic]Range, context.temp_allocator)
 	RANGE_NEW_LINE :: Range { -1, -1 }
 
 	for item, i in commands.items {
