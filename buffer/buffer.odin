@@ -1,27 +1,30 @@
-package editor
+package buffer
 
 import rl "vendor:raylib"
 import fmt "core:fmt"
 import "core:strings"
 import "core:slice"
+import "../range"
+
+Range :: range.Range
 
 Buffer :: struct {
 	content: [dynamic]byte,
 	line_ranges: [dynamic]Range,
 }
 
-buffer_init :: proc(buffer: ^Buffer, text := "") {
+init :: proc(buffer: ^Buffer, text := "") {
 	new_text, _ := strings.replace_all(text, "\r", "", context.temp_allocator)
 	append(&buffer.content, new_text) 
-	buffer_calc_line_ranges(buffer)
+	calc_line_ranges(buffer)
 }
 
-buffer_deinit :: proc(buffer: ^Buffer) {
+deinit :: proc(buffer: ^Buffer) {
 	delete(buffer.content)
 	delete(buffer.line_ranges)
 }
 
-buffer_calc_line_ranges :: proc(buffer: ^Buffer) {
+calc_line_ranges :: proc(buffer: ^Buffer) {
 	clear(&buffer.line_ranges)
 	line_range := Range {}
 	for c, i in buffer.content {
@@ -35,7 +38,7 @@ buffer_calc_line_ranges :: proc(buffer: ^Buffer) {
 	append(&buffer.line_ranges, line_range)
 }
 
-buffer_content_with_clrf :: proc(buffer: ^Buffer, allocator := context.allocator) -> []byte {
+content_with_clrf :: proc(buffer: ^Buffer, allocator := context.allocator) -> []byte {
 	content, _ := strings.replace_all(string(buffer.content[:]), "\n", "\r\n", context.temp_allocator)
 	return transmute([]byte)strings.clone(content, allocator)
 }

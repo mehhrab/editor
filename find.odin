@@ -3,6 +3,7 @@ package editor
 import rl "vendor:raylib"
 import "core:fmt"
 import "core:strings"
+import buf "buffer"
 
 Find :: struct {
 	app: ^App,
@@ -37,7 +38,7 @@ Find_Confirm :: struct {}
 
 find_init :: proc(find: ^Find, app: ^App) {
 	find.app = app
-	buffer: Buffer; buffer_init(&buffer, "")
+	buffer: buf.Buffer; buf.init(&buffer, "")
 	editor_init(&find.input, app, &buffer, "", "")
 }
 

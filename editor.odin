@@ -6,6 +6,7 @@ import "core:strings"
 import "core:slice"
 import "core:odin/tokenizer"
 import "core:math"
+import buf "buffer"
 
 Editor :: struct {
 	app: ^App,
@@ -13,7 +14,7 @@ Editor :: struct {
 	path: string,
 	name: string,
 
-	buffer: Buffer,
+	buffer: buf.Buffer,
 	
 	cursor: Cursor,
 	hide_cursor: bool,
@@ -52,7 +53,7 @@ Undo_Kind :: enum {
 	Delete,
 }
 
-editor_init :: proc(editor: ^Editor, app: ^App, buffer: ^Buffer, path, name: string) {
+editor_init :: proc(editor: ^Editor, app: ^App, buffer: ^buf.Buffer, path, name: string) {
 	editor.app = app
 	editor.buffer = buffer^
 	editor.path = strings.clone(path)
@@ -60,7 +61,7 @@ editor_init :: proc(editor: ^Editor, app: ^App, buffer: ^Buffer, path, name: str
 }
 
 editor_deinit :: proc(editor: ^Editor) {
-	buffer_deinit(&editor.buffer)
+	buf.deinit(&editor.buffer)
 	delete(editor.path)
 	delete(editor.name)
 	delete(editor.highlighted_ranges)
@@ -139,7 +140,7 @@ editor_insert_raw :: proc(editor: ^Editor, text: string, goto_end := true) -> Ra
 	change_range := Range { editor.cursor.head, editor.cursor.head + len(text) }
 	
 	inject_at_elems(&editor.buffer.content, editor.cursor.head, ..transmute([]byte)text)
-	buffer_calc_line_ranges(&editor.buffer)
+	buf.calc_line_ranges(&editor.buffer)
 	if goto_end {
 		editor_goto(editor, editor.cursor.head + len(text))
 	}
@@ -157,7 +158,7 @@ editor_delete :: proc(editor: ^Editor, goto_start := true) {
 editor_delete_raw :: proc(editor: ^Editor, goto_start := true) -> Range {
 	change_range := cursor_to_range(&editor.cursor)
 	remove_range(&editor.buffer.content, change_range.start, change_range.end)
-	buffer_calc_line_ranges(&editor.buffer)
+	buf.calc_line_ranges(&editor.buffer)
 	if goto_start {
 		editor_goto(editor, change_range.start)
 	}

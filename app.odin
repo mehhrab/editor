@@ -7,6 +7,7 @@ import "core:mem"
 import "core:slice"
 import os "core:os/os2"
 import "range"
+import buf "buffer"
 
 Range :: range.Range
 
@@ -271,7 +272,7 @@ app_new_file :: proc(app: ^App, content := "") -> int {
 	index := len(app.editors) - 1
 	editor := &app.editors[index]
 
-	buffer: Buffer; buffer_init(&buffer, content)
+	buffer: buf.Buffer; buf.init(&buffer, content)
 	editor_init(editor, app, &buffer, "", "*untitled*")
 	editor.highlight = true
 	editor.line_numbers = true
@@ -296,7 +297,7 @@ app_open_file :: proc(app: ^App, path: string) -> int {
 	index := len(app.editors) - 1
 	editor := &app.editors[index]
 
-	buffer: Buffer; buffer_init(&buffer, string(text))
+	buffer: buf.Buffer; buf.init(&buffer, string(text))
 	editor_init(editor, app, &buffer, path, file_name)
 	editor.highlight = true
 	editor.line_numbers = true
@@ -309,7 +310,7 @@ app_open_file :: proc(app: ^App, path: string) -> int {
 app_save_file :: proc(app: ^App, index: int) {
 	editor := &app.editors[index]
 	// TODO: add an config option to use clrf or not
-	text := buffer_content_with_clrf(&editor.buffer, context.temp_allocator)
+	text := buf.content_with_clrf(&editor.buffer, context.temp_allocator)
 	write_err := os.write_entire_file(editor.path, text)
 	assert(write_err == nil)
 }

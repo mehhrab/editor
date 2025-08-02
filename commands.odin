@@ -4,6 +4,7 @@ package editor
 import "core:strings"
 import "core:fmt"
 import rl "vendor:raylib"
+import buf "buffer"
 
 Commands :: struct {
 	app: ^App,
@@ -33,7 +34,7 @@ Commands_Selected :: struct {
 commands_init :: proc(commands: ^Commands, app: ^App, items: []string) {
 	commands.app = app
 	{		
-		buffer: Buffer; buffer_init(&buffer)
+		buffer: buf.Buffer; buf.init(&buffer)
 		editor_init(&commands.input, app, &buffer, "", "")
 	}
 	{

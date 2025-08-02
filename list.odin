@@ -2,6 +2,7 @@ package editor
 
 import rl "vendor:raylib"
 import "core:strings"
+import buf "buffer"
 
 List :: struct {
 	app: ^App,
@@ -12,7 +13,7 @@ List :: struct {
 list_init :: proc(list: ^List, app: ^App) {
 	list.app = app
 
-	buffer: Buffer; buffer_init(&buffer) 
+	buffer: buf.Buffer; buf.init(&buffer) 
 	editor_init(&list.content, app, &buffer, "", "")
 	
 	list.content.hide_cursor = true
