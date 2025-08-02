@@ -6,6 +6,9 @@ import "core:strings"
 import "core:mem"
 import "core:slice"
 import os "core:os/os2"
+import "range"
+
+Range :: range.Range
 
 App :: struct {
 	theme: Theme,
@@ -25,10 +28,6 @@ App :: struct {
 	commands: Commands, 
 	
 	chars_pressed: [dynamic]rune,
-}
-
-Range :: struct {
-	start, end: int,
 }
 
 app_main :: proc() {
