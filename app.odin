@@ -8,6 +8,7 @@ import "core:slice"
 import os "core:os/os2"
 import "range"
 import buf "buffer"
+import "path"
 
 Range :: range.Range
 
@@ -71,7 +72,7 @@ app_main :: proc() {
 		delete(app.editors)
 	}
 
-	app_open_file(&app, join_paths({ current_dir, "app.odin" }, context.temp_allocator))
+	app_open_file(&app, path.join({ current_dir, "app.odin" }, context.temp_allocator))
 
 	find_init(&app.find, &app)
 	defer find_deinit(&app.find)
@@ -282,15 +283,15 @@ app_new_file :: proc(app: ^App, content := "") -> int {
 	return index
 }
 
-app_open_file :: proc(app: ^App, path: string) -> int {
+app_open_file :: proc(app: ^App, file_path: string) -> int {
 	for editor, i in app.editors {
-		if editor.path == path {
+		if editor.path == file_path {
 			return i
 		}
 	}
 
-	file_name := shorten_path(path)
-	text, err := os.read_entire_file(path, context.temp_allocator)
+	file_name := path.shorten(file_path)
+	text, err := os.read_entire_file(file_path, context.temp_allocator)
 	assert(err == nil)
 
 	append(&app.editors, Editor {})
@@ -298,7 +299,7 @@ app_open_file :: proc(app: ^App, path: string) -> int {
 	editor := &app.editors[index]
 
 	buffer: buf.Buffer; buf.init(&buffer, string(text))
-	editor_init(editor, app, &buffer, path, file_name)
+	editor_init(editor, app, &buffer, file_path, file_name)
 	editor.highlight = true
 	editor.line_numbers = true
 

@@ -4,6 +4,7 @@ import rl "vendor:raylib"
 import os "core:os/os2"
 import "core:strings"
 import "core:fmt"
+import "path"
 
 File_Picker :: struct {
 	app: ^App,
@@ -61,7 +62,7 @@ file_picker_input :: proc(file_picker: ^File_Picker) -> ([]File_Picker_Event, bo
 
 		full_path: string = ---
 		if file_picker.dir != "" {
-			full_path = join_paths({ file_picker.dir, text }, context.temp_allocator)
+			full_path = path.join({ file_picker.dir, text }, context.temp_allocator)
 		}
 		else {
 			// text is a disk
@@ -69,7 +70,7 @@ file_picker_input :: proc(file_picker: ^File_Picker) -> ([]File_Picker_Event, bo
 		}
 	
 		if text == ".." {
-			parent_path := parent_path(file_picker.dir)
+			parent_path := path.parent(file_picker.dir)
 			items: []string
 			if strings.ends_with(file_picker.dir, ":") {
 				items = file_picker_items_from_drives(context.temp_allocator)
