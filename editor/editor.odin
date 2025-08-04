@@ -6,11 +6,14 @@ import "core:strings"
 import "core:slice"
 import "core:odin/tokenizer"
 import "core:math"
-import buf "buffer"
+import buf "../buffer"
+import "../range"
+import "../syntax"
+
+Range :: range.Range
 
 Editor :: struct {
-	app: ^App,
-
+	// TODO: move these two outta here
 	path: string,
 	name: string,
 
@@ -21,6 +24,7 @@ Editor :: struct {
 	scroll_x: f32,
 	scroll_y: f32,
 
+	syntax: syntax.Syntax,
 	lexer: tokenizer.Tokenizer,
 	highlighted_ranges: [dynamic]Range,
 	
@@ -31,6 +35,7 @@ Editor :: struct {
 	undos: [dynamic]Undo,
 	undo_index: int,
 
+	style: Style,
 	rect: rl.Rectangle,
 	active: bool,
 }
@@ -53,14 +58,25 @@ Undo_Kind :: enum {
 	Delete,
 }
 
-editor_init :: proc(editor: ^Editor, app: ^App, buffer: ^buf.Buffer, path, name: string) {
-	editor.app = app
+Style :: struct {
+	font: rl.Font,
+	font_size: f32,
+	text_color: rl.Color,
+	text_color2: rl.Color,
+	bg_color: rl.Color,
+	select_color: rl.Color,
+	highlight_color: rl.Color,
+	caret_color: rl.Color,
+}
+
+init :: proc(editor: ^Editor, style: ^Style, buffer: ^buf.Buffer, path, name: string) {
+	editor.style = style^
 	editor.buffer = buffer^
 	editor.path = strings.clone(path)
 	editor.name = strings.clone(name)
 }
 
-editor_deinit :: proc(editor: ^Editor) {
+deinit :: proc(editor: ^Editor) {
 	buf.deinit(&editor.buffer)
 	delete(editor.path)
 	delete(editor.name)
@@ -71,21 +87,21 @@ editor_deinit :: proc(editor: ^Editor) {
 	delete(editor.undos)
 }
 
-editor_selected_text :: proc(editor: ^Editor) -> string {
+selected_text :: proc(editor: ^Editor) -> string {
 	range := cursor_to_range(&editor.cursor)
 	return string(editor.buffer.content[range.start:range.end])
 }
 
-editor_select :: proc(editor: ^Editor, range: Range) {
-	editor_goto(editor, range.start)
-	editor_goto(editor, range.end, true)
+select :: proc(editor: ^Editor, range: Range) {
+	goto(editor, range.start)
+	goto(editor, range.end, true)
 }
 
-editor_all :: proc(editor: ^Editor) -> Range {
+all :: proc(editor: ^Editor) -> Range {
 	return { 0, len(editor.buffer.content)}
 }
 
-editor_goto :: proc(editor: ^Editor, pos: int, select := false, remember_col := true) {
+goto :: proc(editor: ^Editor, pos: int, select := false, remember_col := true) {
 	pos := clamp(pos, 0, len(editor.buffer.content))
 	if select == false {
 		editor.cursor.anchor = pos
@@ -93,7 +109,7 @@ editor_goto :: proc(editor: ^Editor, pos: int, select := false, remember_col := 
 	editor.cursor.head = pos	
 
 	if remember_col {
-		editor_remember_col(editor)
+		save_col(editor)
 	}
 }
 
@@ -104,16 +120,16 @@ cursor_to_range :: proc(cursor: ^Cursor) -> Range {
 	}
 }
 
-editor_has_selection :: proc(editor: ^Editor) -> bool {
+has_selection :: proc(editor: ^Editor) -> bool {
 	return editor.cursor.head != editor.cursor.anchor
 }
 
-editor_remember_col :: proc(editor: ^Editor) {
-	line := editor_line_from_pos(editor, editor.cursor.head)
+save_col :: proc(editor: ^Editor) {
+	line := line_from_pos(editor, editor.cursor.head)
 	editor.cursor.last_col = col_real_to_visual(editor, line)
 }
 
-editor_line_from_pos :: proc(editor: ^Editor, pos: int) -> int {
+line_from_pos :: proc(editor: ^Editor, pos: int) -> int {
 	buffer := &editor.buffer
 	line := 0
 	for range, i in buffer.line_ranges {
@@ -126,193 +142,231 @@ editor_line_from_pos :: proc(editor: ^Editor, pos: int) -> int {
 	return line
 }
 
-editor_clamp_in_line :: proc(editor: ^Editor, pos, line: int) -> int {
+clamp_in_line :: proc(editor: ^Editor, pos, line: int) -> int {
 	return clamp(pos, editor.buffer.line_ranges[line].start, editor.buffer.line_ranges[line].end)
 }
 
-editor_insert :: proc(editor: ^Editor, text: string, goto_end := true) -> Range {
-	change_range := editor_insert_raw(editor, text, goto_end)
-	editor_push_undo(editor, .Insert, change_range, text)
+insert :: proc(editor: ^Editor, text: string, goto_end := true) -> Range {
+	change_range := insert_raw(editor, text, goto_end)
+	push_undo(editor, .Insert, change_range, text)
 	return change_range
 }
 
-editor_insert_raw :: proc(editor: ^Editor, text: string, goto_end := true) -> Range {
+insert_raw :: proc(editor: ^Editor, text: string, goto_end := true) -> Range {
 	change_range := Range { editor.cursor.head, editor.cursor.head + len(text) }
 	
 	inject_at_elems(&editor.buffer.content, editor.cursor.head, ..transmute([]byte)text)
 	buf.calc_line_ranges(&editor.buffer)
 	if goto_end {
-		editor_goto(editor, editor.cursor.head + len(text))
+		goto(editor, editor.cursor.head + len(text))
 	}
 
 	return change_range
 }
 
-editor_delete :: proc(editor: ^Editor, goto_start := true) {
+remove :: proc(editor: ^Editor, goto_start := true) {
 	// clone this since we are gonna remove the selection one line later
-	text := strings.clone(editor_selected_text(editor), context.temp_allocator)
-	change_range := editor_delete_raw(editor, goto_start)	
-	editor_push_undo(editor, .Delete, change_range, text)
+	text := strings.clone(selected_text(editor), context.temp_allocator)
+	change_range := remove_raw(editor, goto_start)	
+	push_undo(editor, .Delete, change_range, text)
 }
 
-editor_delete_raw :: proc(editor: ^Editor, goto_start := true) -> Range {
+remove_raw :: proc(editor: ^Editor, goto_start := true) -> Range {
 	change_range := cursor_to_range(&editor.cursor)
 	remove_range(&editor.buffer.content, change_range.start, change_range.end)
 	buf.calc_line_ranges(&editor.buffer)
 	if goto_start {
-		editor_goto(editor, change_range.start)
+		goto(editor, change_range.start)
 	}
 	return change_range
 }
 
-editor_clear :: proc(editor: ^Editor) {
-	editor_goto(editor, 0)
-	editor_goto(editor, len(editor.buffer.content), true)
-	editor_delete(editor)
+replace :: proc(editor: ^Editor, text: string) {
+	remove(editor)
+	insert(editor, text)
 }
 
-editor_input :: proc(editor: ^Editor) -> bool {
-	buffer := &editor.buffer
+clear :: proc(editor: ^Editor) {
+	goto(editor, 0)
+	goto(editor, len(editor.buffer.content), true)
+	remove(editor)
+}
 
-	handled := false
+go_right :: proc(editor: ^Editor, select := false) {
+	dest := 0
+	if has_selection(editor) && select == false {
+		cursor_range := cursor_to_range(&editor.cursor)
+		dest = cursor_range.end
+	}
+	else {
+		dest = editor.cursor.head + 1
+	}
+	goto(editor, dest, select)
+}
+
+go_left :: proc(editor: ^Editor, select := false) {
+	dest := 0
+	if has_selection(editor) && select == false {
+		cursor_range := cursor_to_range(&editor.cursor)
+		dest = cursor_range.start
+	}
+	else {
+		dest = editor.cursor.head - 1
+	}
+	goto(editor, dest, select)	
+}
+
+go_up :: proc(editor: ^Editor, select := false) {
+	dest := 0
+	line := line_from_pos(editor, editor.cursor.head)
+	if 0 < line {
+		dest = editor.buffer.line_ranges[line - 1].start
+		dest += col_visual_to_real(editor, line - 1)
+		dest = clamp_in_line(editor, dest, line - 1)
+	}
+	goto(editor, dest, select, false)	
+}
+
+go_down :: proc(editor: ^Editor, select := false) {
+	dest := 0
+	line := line_from_pos(editor, editor.cursor.head)
+	if len(editor.buffer.line_ranges) - 1 <= line {
+		dest = len(editor.buffer.content)
+	}
+	else {
+		dest = editor.buffer.line_ranges[line + 1].start
+		dest += col_visual_to_real(editor, line + 1)
+		dest = clamp_in_line(editor, dest, line + 1)
+	}
+	goto(editor, dest, select, false)	
+}
+
+back_space :: proc(editor: ^Editor) {
+	if has_selection(editor) == false {
+		goto(editor, editor.cursor.head - 1, true)
+	} 
+	remove(editor)
+}
+
+select_line :: proc(editor: ^Editor) {
+	line := line_from_pos(editor, editor.cursor.head)
+	line_range := editor.buffer.line_ranges[line]
+	goto(editor, line_range.start, has_selection(editor))
+	goto(editor, line_range.end + 1, true)
+}
+
+copy :: proc(editor: ^Editor) {
+	if has_selection(editor) {
+		range := cursor_to_range(&editor.cursor)
+		text := string(editor.buffer.content[range.start:range.end])
+		rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
+	}
+	else {
+		line := line_from_pos(editor, editor.cursor.head)
+		range := editor.buffer.line_ranges[line]
+		text := string(editor.buffer.content[range.start:range.end])
+		rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
+	}
+}
+
+cut :: proc(editor: ^Editor) {
+	range := Range {}
+	if has_selection(editor) {
+		range = cursor_to_range(&editor.cursor)
+		text := string(editor.buffer.content[range.start:range.end])
+		rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
+	}
+	else {
+		line := line_from_pos(editor, editor.cursor.head)
+		range = editor.buffer.line_ranges[line]
+		text := string(editor.buffer.content[range.start:range.end])
+		rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
+	}
+	select(editor, range)
+	remove(editor)
+}
+
+paste :: proc(editor: ^Editor) {
+	remove(editor)
+	text := strings.clone_from_cstring(rl.GetClipboardText(), context.temp_allocator)
+	insert(editor, text)
+}
+
+// insert_char :: proc(editor: ^Editor, char: rune) {
+// 	remove(editor)
+// 	insert(editor, fmt.tprint(char))
+// }
+
+// input :: proc(editor: ^Editor) -> bool {
+// 	buffer := &editor.buffer
+
+// 	handled := false
 	
-	shift_down := rl.IsKeyDown(.LEFT_SHIFT)
-	if key_pressed_or_repeated(.RIGHT) {
-		dest := 0
-		if editor_has_selection(editor) && shift_down == false {
-			cursor_range := cursor_to_range(&editor.cursor)
-			dest = cursor_range.end
-		}
-		else {
-			dest = editor.cursor.head + 1
-		}
-		editor_goto(editor, dest, shift_down)
-		handled = true
-	}
-	else if key_pressed_or_repeated(.LEFT) {
-		dest := 0
-		if editor_has_selection(editor) && shift_down == false {
-			cursor_range := cursor_to_range(&editor.cursor)
-			dest = cursor_range.start
-		}
-		else {
-			dest = editor.cursor.head - 1
-		}
-		editor_goto(editor, dest, shift_down)
-		handled = true
-	}
-	else if key_pressed_or_repeated(.UP) {
-		dest := 0
-		line := editor_line_from_pos(editor, editor.cursor.head)
-		if 0 < line {
-			dest = buffer.line_ranges[line - 1].start
-			dest += col_visual_to_real(editor, line - 1)
-			dest = editor_clamp_in_line(editor, dest, line - 1)
-		}
-		editor_goto(editor, dest, shift_down, false)
-		handled = true
-	}
-	else if key_pressed_or_repeated(.DOWN) {
-		dest := 0
-		line := editor_line_from_pos(editor, editor.cursor.head)
-		if len(buffer.line_ranges) - 1 <= line {
-			dest = len(buffer.content)
-		}
-		else {
-			dest = buffer.line_ranges[line + 1].start
-			dest += col_visual_to_real(editor, line + 1)
-			dest = editor_clamp_in_line(editor, dest, line + 1)
-		}
-		editor_goto(editor, dest, shift_down, false)
-		handled = true
-	}
-	else if key_pressed_or_repeated(.ENTER) {
-		editor_delete(editor)
-		editor_insert(editor, "\n")
-		handled = true
-	}
-	else if key_pressed_or_repeated(.TAB) {
-		editor_insert(editor, "\t")
-		handled = true
-	}
-	else if key_pressed_or_repeated(.BACKSPACE) {
-		if editor_has_selection(editor) == false {
-			editor_goto(editor, editor.cursor.head - 1, true)
-		} 
-		editor_delete(editor)
-		handled = true
-	}
-	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.L) {
-		line := editor_line_from_pos(editor, editor.cursor.head)
-		line_range := editor.buffer.line_ranges[line]
-		editor_goto(editor, line_range.start, editor_has_selection(editor))
-		editor_goto(editor, line_range.end + 1, true)
-		handled = true
-	}
-	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.A) {
-		editor_select(editor, editor_all(editor))
-		handled = true
-	}
-	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.C) {
-		if editor_has_selection(editor) {
-			range := cursor_to_range(&editor.cursor)
-			text := string(editor.buffer.content[range.start:range.end])
-			rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
-		}
-		else {
-			line := editor_line_from_pos(editor, editor.cursor.head)
-			range := editor.buffer.line_ranges[line]
-			text := string(editor.buffer.content[range.start:range.end])
-			rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
-		}
-		handled = true
-	}
-	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.X) {
-		range := Range {}
-		if editor_has_selection(editor) {
-			range = cursor_to_range(&editor.cursor)
-			text := string(editor.buffer.content[range.start:range.end])
-			rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
-		}
-		else {
-			line := editor_line_from_pos(editor, editor.cursor.head)
-			range = editor.buffer.line_ranges[line]
-			text := string(editor.buffer.content[range.start:range.end])
-			rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
-		}
-		editor_select(editor, range)
-		editor_delete(editor)
-		handled = true
-	}
-	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.V) {
-		editor_delete(editor)
-		text := strings.clone_from_cstring(rl.GetClipboardText(), context.temp_allocator)
-		editor_insert(editor, text)
-		handled = true
-	}
-	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.Z) {
-		editor_undo(editor)
-		handled = true
-	}
-	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.Y) {
-		editor_redo(editor)
-		handled = true
-	}
-	else {		
-		for char in editor.app.chars_pressed {			
-			editor_delete(editor)
-			editor_insert(editor, fmt.tprint(char))
-			handled = true
-		}
-	}
+// 	shift_down := rl.IsKeyDown(.LEFT_SHIFT)
+// 	if key_pressed_or_repeated(.RIGHT) {
+		
+// 		handled = true
+// 	}
+// 	else if key_pressed_or_repeated(.LEFT) {
+// 		handled = true
+// 	}
+// 	else if key_pressed_or_repeated(.UP) {
+// 		handled = true
+// 	}
+// 	else if key_pressed_or_repeated(.DOWN) {
+// 		handled = true
+// 	}
+// 	else if key_pressed_or_repeated(.ENTER) {
+// 		remove(editor)
+// 		insert(editor, "\n")
+// 		handled = true
+// 	}
+// 	else if key_pressed_or_repeated(.TAB) {
+// 		insert(editor, "\t")
+// 		handled = true
+// 	}
+// 	else if key_pressed_or_repeated(.BACKSPACE) {
+		
+// 		handled = true
+// 	}
+// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.L) {
+// 		handled = true
+// 	}
+// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.A) {
+// 		select(editor, all(editor))
+// 		handled = true
+// 	}
+// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.C) {
+		
+// 		handled = true
+// 	}
+// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.X) {
+// 		handled = true
+// 	}
+// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.V) {
+// 		handled = true
+// 	}
+// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.Z) {
+// 		undo(editor)
+// 		handled = true
+// 	}
+// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.Y) {
+// 		redo(editor)
+// 		handled = true
+// 	}
+// 	else {		
+// 		for char in editor.app.chars_pressed {			
+			
+// 			handled = true
+// 		}
+// 	}
 
-	return handled
-}
+// 	return handled
+// }
 
-editor_draw :: proc(editor: ^Editor) {
+draw :: proc(editor: ^Editor) {
 	buffer := &editor.buffer
-	font := &editor.app.font
-	theme := &editor.app.theme
+	style := &editor.style
 	scroll_x := &editor.scroll_x
 	scroll_y := &editor.scroll_y
 
@@ -331,9 +385,9 @@ editor_draw :: proc(editor: ^Editor) {
 		editor.rect.height,
 	}
 
-	rl.DrawRectangleRec(editor.rect, theme.bg)
+	rl.DrawRectangleRec(editor.rect, style.bg_color)
 	
-	current_line := editor_line_from_pos(editor, editor.cursor.head)
+	current_line := line_from_pos(editor, editor.cursor.head)
 	
 	look_ahead_x := f32(80)
 	look_ahead_y := f32(80)
@@ -343,9 +397,9 @@ editor_draw :: proc(editor: ^Editor) {
 	for i in buffer.line_ranges[current_line].start..<editor.cursor.head {
 		char := buffer.content[i]
 		char_cstring := fmt.ctprint(rune(char))
-		char_w := rl.MeasureTextEx(font^, char_cstring, 40, 0)[0]
+		char_w := rl.MeasureTextEx(style.font, char_cstring, 40, 0)[0]
 		if char == '\t' {
-			char_w = rl.MeasureTextEx(font^, "    ", 40, 0)[0]
+			char_w = rl.MeasureTextEx(style.font, "    ", 40, 0)[0]
 		}
 		cursor_x += char_w
 	}
@@ -403,7 +457,7 @@ editor_draw :: proc(editor: ^Editor) {
 			editor.rect.width,
 			40
 		}
-		rl.DrawRectangleRec(highlight, { 255, 255, 255, 20 })
+		rl.DrawRectangleRec(highlight, style.highlight_color)
 	}
 	
 	start_x := code_rect.x + scroll_x^ 
@@ -420,34 +474,34 @@ editor_draw :: proc(editor: ^Editor) {
 			token_index += 1
 		} 
 		token := tokens[token_index]
-		char_color := theme.text
+		char_color := style.text_color
 		if editor.highlight { 
-			char_color = get_color_for_token(&theme.syntax, token.kind)
+			char_color = get_color_for_token(&editor.syntax, token.kind)
 		}
 
 		char_cstring := fmt.ctprint(rune(char))
-		char_w := rl.MeasureTextEx(font^, char_cstring, 40, 0)[0]
+		char_w := rl.MeasureTextEx(style.font, char_cstring, 40, 0)[0]
 		if char == '\n' {
-			char_w = rl.MeasureTextEx(font^, " ", 40, 0)[0]
+			char_w = rl.MeasureTextEx(style.font, " ", 40, 0)[0]
 		} else if char == '\t' {
-			char_w = rl.MeasureTextEx(font^, "    ", 40, 0)[0]
+			char_w = rl.MeasureTextEx(style.font, "    ", 40, 0)[0]
 		}
 
 		// draw selection
 		cursor_range := cursor_to_range(&editor.cursor)
 		if cursor_range.start <= char_index && char_index < cursor_range.end {
-			rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, theme.selection)
+			rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, style.select_color)
 		} 
 
 		// draw highlighted ranges
 		for range in editor.highlighted_ranges {
 			if range.start <= char_index && char_index < range.end {
-				rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, theme.highlight)
+				rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, style.select_color)
 			}
 		}
 
 		// draw text
-		rl.DrawTextEx(font^, char_cstring, { char_x, char_y }, 40, 0, char_color)
+		rl.DrawTextEx(style.font, char_cstring, { char_x, char_y }, 40, 0, char_color)
 		
 		if char == '\n' {
 			char_x = start_x
@@ -461,15 +515,15 @@ editor_draw :: proc(editor: ^Editor) {
 	}
 	
 	// draw line numbers
-	rl.DrawRectangleRec(lines_rect, theme.bg)
+	// rl.DrawRectangleRec(lines_rect, style.)
 	if editor.line_numbers {		
 		for i in first_line..=last_line {
-			number_color := theme.text2
-			if i == editor_line_from_pos(editor, editor.cursor.head) {
-				number_color = theme.text
+			number_color := style.text_color2
+			if i == line_from_pos(editor, editor.cursor.head) {
+				number_color = style.text_color
 			}
 			pos := rl.Vector2 { lines_rect.x + 10, lines_rect.y + f32(i) * 40 + scroll_y^ }
-			rl.DrawTextEx(font^, fmt.ctprint(i + 1), pos, 40, 0, number_color)
+			rl.DrawTextEx(style.font, fmt.ctprint(i + 1), pos, 40, 0, number_color)
 		}
 
 		shadow_rect := rl.Rectangle { 
@@ -484,24 +538,24 @@ editor_draw :: proc(editor: ^Editor) {
 
 	// draw cursor
 	if editor.hide_cursor == false {
-		line := editor_line_from_pos(editor, editor.cursor.head)
+		line := line_from_pos(editor, editor.cursor.head)
 		cursor_x := code_rect.x + scroll_x^
 		cursor_y := code_rect.y + f32(line) * 40 + scroll_y^
 		for i in buffer.line_ranges[line].start..<editor.cursor.head {
 			char := rune(buffer.content[i])
 			char_cstring := fmt.ctprint(char)
-			char_w := rl.MeasureTextEx(font^, char_cstring, 40, 0)[0]
+			char_w := rl.MeasureTextEx(style.font, char_cstring, 40, 0)[0]
 			if char == '\t' {
-				char_w = rl.MeasureTextEx(font^, "    ", 40, 0)[0]
+				char_w = rl.MeasureTextEx(style.font, "    ", 40, 0)[0]
 			}
 			cursor_x += char_w
 		}
-		rl.DrawRectangleRec({ cursor_x, cursor_y, 2, 40 }, theme.caret)
+		rl.DrawRectangleRec({ cursor_x, cursor_y, 2, 40 }, style.caret_color)
 	}
 	rl.EndScissorMode()
 }
 
-get_color_for_token :: proc(syntax: ^Syntax, kind: tokenizer.Token_Kind) -> rl.Color {
+get_color_for_token :: proc(syntax: ^syntax.Syntax, kind: tokenizer.Token_Kind) -> rl.Color {
 	color := syntax.default
 	if kind == .Ident {
 		color = syntax.symbol
@@ -520,8 +574,8 @@ get_color_for_token :: proc(syntax: ^Syntax, kind: tokenizer.Token_Kind) -> rl.C
 }
 
 // TODO: add horizontal version of this
-editor_scroll_center_v :: proc(editor: ^Editor, pos: int) {
-	line_index := editor_line_from_pos(editor, pos)
+scroll_center_v :: proc(editor: ^Editor, pos: int) {
+	line_index := line_from_pos(editor, pos)
 	editor.scroll_y = -(f32(line_index) * 40 - f32(rl.GetScreenHeight()) / 2)  
 	if editor.scroll_y > 0 {
 		editor.scroll_y = 0
@@ -572,19 +626,19 @@ col_real_to_visual :: proc(editor: ^Editor, line: int) -> int {
 	return col
 }
 
-editor_undo :: proc(editor: ^Editor) {
+undo :: proc(editor: ^Editor) {
 	for 1 <= editor.undo_index {
 		editor.undo_index -= 1
 		undo := editor.undos[editor.undo_index]
 
 		if undo.kind == .Insert {
-			editor_select(editor, undo.change_range)
-			editor_delete_raw(editor)
+			select(editor, undo.change_range)
+			remove_raw(editor)
 		}
 		else if undo.kind == .Delete {
-			editor_goto(editor, undo.change_range.start)
-			editor_insert_raw(editor, undo.text)
-			editor_select(editor, undo.change_range)
+			goto(editor, undo.change_range.start)
+			insert_raw(editor, undo.text)
+			select(editor, undo.change_range)
 		}
 		
 		can_be_mereged := 1 <= editor.undo_index && 
@@ -599,16 +653,16 @@ editor_undo :: proc(editor: ^Editor) {
 	}
 }
 
-editor_redo :: proc(editor: ^Editor) {
+redo :: proc(editor: ^Editor) {
 	for editor.undo_index <= len(editor.undos) - 1 {
 		undo := editor.undos[editor.undo_index]
 
 		if undo.kind == .Insert {
-			editor_insert_raw(editor, undo.text)
+			insert_raw(editor, undo.text)
 		}
 		else if undo.kind == .Delete {
-			editor_select(editor, undo.change_range)
-			editor_delete_raw(editor)
+			select(editor, undo.change_range)
+			remove_raw(editor)
 		}
 
 		can_be_mereged := editor.undo_index + 1 <= len(editor.undos) - 1 && 
@@ -625,7 +679,7 @@ editor_redo :: proc(editor: ^Editor) {
 	}
 }
 
-editor_push_undo :: proc(editor: ^Editor, kind: Undo_Kind, range: Range, text: string) {
+push_undo :: proc(editor: ^Editor, kind: Undo_Kind, range: Range, text: string) {
 	for i := len(editor.undos) - 1; editor.undo_index <= i; i -= 1 {
 		undo := pop(&editor.undos)
 		undo_deinit(&undo)
@@ -642,4 +696,8 @@ editor_push_undo :: proc(editor: ^Editor, kind: Undo_Kind, range: Range, text: s
 
 undo_deinit :: proc(undo: ^Undo) {
 	delete(undo.text)
+}
+
+set_style :: proc(editor: ^Editor, style: Style) {
+	editor.style = style
 }

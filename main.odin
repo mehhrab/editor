@@ -1,4 +1,4 @@
-package editor
+package main
 
 main :: proc() {
 	app_main()
