@@ -14,6 +14,7 @@ import fi "find"
 import co "commands"
 import fp "file_picker"
 import li "list"
+import km "keymap"
 
 Range :: range.Range
 
@@ -22,6 +23,7 @@ App :: struct {
 	style: Style,
 	font: rl.Font,
 	font_size: f32,
+	bindings: Bindings,
 	
 	editors: [dynamic]ed.Editor,
 	editor_index: int,
@@ -78,6 +80,7 @@ app_main :: proc() {
 	app.font_size = 40
 	app.font = rl.LoadFontEx("FiraCode-Regular.ttf", i32(app.font_size * 2), nil, 0)
 	app.style = style_from_theme(&app.theme, app.font, app.font_size)
+	app.bindings = bindings_default()
 	defer delete(app.chars_pressed)
 
 	defer {
@@ -124,51 +127,13 @@ app_main :: proc() {
 		input(&app)
 
 		if app.find.visible {
-			if check_key(.ENTER, .Control) {
-				fi.hide(&app.find)
-			}
-			else if check_key(.ENTER) {
-				find_next(&app)
-			}
-			else {
-				editor_input(&app, &app.find.input)
-				if len(&app.chars_pressed) != 0 {
-					fi.calc_matches(&app.find)
-					_, match_range := fi.next(&app.find)
-					ed.select(editor(&app), match_range)
-				}
-			}
+			find_input(&app)
 		}
 		else if app.file_picker.visible {
-			if check_key(.UP, type = .Press_Repeat) {
-				fp.go_up(&app.file_picker)
-			}
-			else if check_key(.DOWN, type = .Press_Repeat) {
-				fp.go_down(&app.file_picker)
-			}
-			else if check_key(.ESCAPE) {
-				commands_hide(&app)
-			}
-			else if check_key(.ENTER) {
-				if file_path, ok := fp.select(&app.file_picker).?; ok {
-					open_file(&app, file_path)
-					file_picker_hide(&app)
-				}
-			}
+			file_picker_input(&app)
 		}
 		else if app.commands.visible {
-			if check_key(.UP, type = .Press_Repeat) {
-				co.go_up(&app.commands)
-			}
-			else if check_key(.DOWN, type = .Press_Repeat) {
-				co.go_down(&app.commands)
-			}
-			else if check_key(.ESCAPE) {
-				commands_hide(&app)
-			}
-			else if check_key(.ENTER) {
-				commands_hide(&app)
-			}
+			commands_input(&app)
 		}
 		else {
 			editor_input(&app, code_editor(&app))
@@ -223,106 +188,6 @@ app_main :: proc() {
 
 		clear(&app.chars_pressed)
 		free_all(context.temp_allocator)
-	}
-}
-
-input :: proc(app: ^App) -> bool {
-	handled := false
-	if check_key(.F, .Control) {
-		find_show(app)
-		handled = true
-	}
-	else if check_key(.P, .Control) {
-		commands_show(app)
-		handled = true
-	}
-	else if check_key(.E, .Control) {
-		file_picker_show(app)
-		handled = true
-	}
-	else if check_key(.TAB, .Control) {
-		focus_editor(app, (app.editor_index + 1) % len(app.editors)) 
-		handled = true
-	}
-	else if check_key(.N, .Control) {
-		new_file(app)
-		handled = true
-	}
-	else if check_key(.P, .Control) {
-		save_file(app, app.editor_index)
-		handled = true
-	}
-	else if check_key(.W, .Control) {
-		if 1 < len(app.editors) {			
-			ed.deinit(&app.editors[app.editor_index])
-			ordered_remove(&app.editors, app.editor_index)
-			focus_editor(app, len(app.editors) - 1)
-		}
-		handled = true
-	}
-	else if check_key(.ESCAPE) {
-		if app.find.visible {
-			find_cancel(app)
-			handled = true
-		}
-		else if app.file_picker.visible {
-			file_picker_hide(app)
-			handled = true
-		}
-		else if app.commands.visible {
-			commands_hide(app)
-			handled = true
-		}
-	}
-
-	return handled
-}
-
-editor_input :: proc(app: ^App, editor: ^ed.Editor) {
-	if check_key(.UP, type = .Press_Repeat) {
-		ed.go_up(editor, false)
-	}
-	else if check_key(.DOWN, type = .Press_Repeat) {
-		ed.go_down(editor, false)
-	}
-	else if check_key(.LEFT, type = .Press_Repeat) {
-		ed.go_left(editor, false)
-	}
-	else if check_key(.RIGHT, type = .Press_Repeat) {
-		ed.go_right(editor, false)
-	}
-	else if check_key(.UP, .Shift, type = .Press_Repeat) {
-		ed.go_up(editor, true)
-	}
-	else if check_key(.DOWN, .Shift, type = .Press_Repeat) {
-		ed.go_down(editor, true)
-	}
-	else if check_key(.LEFT, .Shift, type = .Press_Repeat) {
-		ed.go_left(editor, true)
-	}
-	else if check_key(.RIGHT, .Shift, type = .Press_Repeat) {
-		ed.go_right(editor, true)
-	}
-	else if check_key(.BACKSPACE, type = .Press_Repeat) {
-		ed.back_space(editor)
-	}
-	else if check_key(.ENTER, type = .Press_Repeat) {
-		ed.replace(editor, "\n")
-	}
-	else if check_key(.TAB, type = .Press_Repeat) {
-		// TODO: add option to use spaces
-		ed.replace(editor, "\t")
-	}
-	else if check_key(.Z, .Control, type = .Press_Repeat) {
-		ed.undo(editor)
-	}
-	else if check_key(.Y, .Control, type = .Press_Repeat) {
-		ed.redo(editor)
-	}
-	else if len(app.chars_pressed) != 0 {
-		for char in app.chars_pressed {
-			ed.replace(editor, fmt.tprint(char))
-		}
 	}
 }
 
@@ -464,51 +329,6 @@ editor :: proc(app: ^App) -> ^ed.Editor {
 		current_editor = code_editor(app)
 	}
 	return current_editor	
-}
-
-Mod_Key :: enum {
-	Control,
-	Shift,
-	Alt,
-}
-
-Press_Kind :: enum {
-	Press,
-	Hold,
-	Repeat,
-	Press_Repeat
-}
-
-// TODO: rewrite this guy to be simpler
-check_key :: proc(key: rl.KeyboardKey, mods: ..Mod_Key, type := Press_Kind.Press) -> bool {
-	shift_down := rl.IsKeyDown(.LEFT_SHIFT)
-	alt_down := rl.IsKeyDown(.LEFT_ALT)
-	control_down := rl.IsKeyDown(.LEFT_CONTROL)
-	
-	shift_wanted := false
-	alt_wanted := false
-	control_wanted := false
-	
-	for mod in mods {
-		switch mod {
-			case .Alt: alt_wanted = true 
-			case .Shift: shift_wanted = true 
-			case .Control: control_wanted = true 
-		}
-	}
-
-	key_pressed := false
-	switch type {
-		case .Press: key_pressed = rl.IsKeyPressed(key)
-		case .Hold: key_pressed = rl.IsKeyDown(key)
-		case .Repeat: key_pressed = rl.IsKeyPressedRepeat(key)
-		case .Press_Repeat: key_pressed = rl.IsKeyPressed(key) || rl.IsKeyPressedRepeat(key)
-	}
-
-	return key_pressed &&
-	shift_down == shift_wanted &&
-	alt_down == alt_wanted &&
-	control_down == control_wanted
 }
 
 style_from_theme :: proc(theme: ^Theme, font: rl.Font, font_size: f32) -> Style {
