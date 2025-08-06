@@ -164,11 +164,12 @@ insert_raw :: proc(editor: ^Editor, text: string, goto_end := true) -> Range {
 	return change_range
 }
 
-remove :: proc(editor: ^Editor, goto_start := true) {
+remove :: proc(editor: ^Editor, goto_start := true) -> Range {
 	// clone this since we are gonna remove the selection one line later
 	text := strings.clone(selected_text(editor), context.temp_allocator)
 	change_range := remove_raw(editor, goto_start)	
 	push_undo(editor, .Delete, change_range, text)
+	return change_range
 }
 
 remove_raw :: proc(editor: ^Editor, goto_start := true) -> Range {
@@ -181,9 +182,10 @@ remove_raw :: proc(editor: ^Editor, goto_start := true) -> Range {
 	return change_range
 }
 
-replace :: proc(editor: ^Editor, text: string) {
-	remove(editor)
-	insert(editor, text)
+replace :: proc(editor: ^Editor, text: string) -> (Range, Range) {
+	removed_range := remove(editor)
+	inserted_range := insert(editor, text)
+	return removed_range, inserted_range
 }
 
 clear :: proc(editor: ^Editor) {
@@ -291,78 +293,6 @@ paste :: proc(editor: ^Editor) {
 	text := strings.clone_from_cstring(rl.GetClipboardText(), context.temp_allocator)
 	insert(editor, text)
 }
-
-// insert_char :: proc(editor: ^Editor, char: rune) {
-// 	remove(editor)
-// 	insert(editor, fmt.tprint(char))
-// }
-
-// input :: proc(editor: ^Editor) -> bool {
-// 	buffer := &editor.buffer
-
-// 	handled := false
-	
-// 	shift_down := rl.IsKeyDown(.LEFT_SHIFT)
-// 	if key_pressed_or_repeated(.RIGHT) {
-		
-// 		handled = true
-// 	}
-// 	else if key_pressed_or_repeated(.LEFT) {
-// 		handled = true
-// 	}
-// 	else if key_pressed_or_repeated(.UP) {
-// 		handled = true
-// 	}
-// 	else if key_pressed_or_repeated(.DOWN) {
-// 		handled = true
-// 	}
-// 	else if key_pressed_or_repeated(.ENTER) {
-// 		remove(editor)
-// 		insert(editor, "\n")
-// 		handled = true
-// 	}
-// 	else if key_pressed_or_repeated(.TAB) {
-// 		insert(editor, "\t")
-// 		handled = true
-// 	}
-// 	else if key_pressed_or_repeated(.BACKSPACE) {
-		
-// 		handled = true
-// 	}
-// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.L) {
-// 		handled = true
-// 	}
-// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.A) {
-// 		select(editor, all(editor))
-// 		handled = true
-// 	}
-// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.C) {
-		
-// 		handled = true
-// 	}
-// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.X) {
-// 		handled = true
-// 	}
-// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.V) {
-// 		handled = true
-// 	}
-// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.Z) {
-// 		undo(editor)
-// 		handled = true
-// 	}
-// 	else if rl.IsKeyDown(.LEFT_CONTROL) && rl.IsKeyPressed(.Y) {
-// 		redo(editor)
-// 		handled = true
-// 	}
-// 	else {		
-// 		for char in editor.app.chars_pressed {			
-			
-// 			handled = true
-// 		}
-// 	}
-
-// 	return handled
-// }
 
 draw :: proc(editor: ^Editor) {
 	buffer := &editor.buffer
@@ -515,7 +445,6 @@ draw :: proc(editor: ^Editor) {
 	}
 	
 	// draw line numbers
-	// rl.DrawRectangleRec(lines_rect, style.)
 	if editor.line_numbers {		
 		for i in first_line..=last_line {
 			number_color := style.text_color2
