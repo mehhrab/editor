@@ -200,8 +200,6 @@ new_file :: proc(app: ^App, content := "") -> int {
 	ed.init(editor, &app.style.editor, &buffer, "", "*untitled*")
 	editor.highlight = true
 	editor.line_numbers = true
-
-	focus_editor(app, index)
 	
 	return index
 }

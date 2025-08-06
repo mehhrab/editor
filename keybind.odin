@@ -87,7 +87,8 @@ input :: proc(app: ^App) {
 		focus_editor(app, (app.editor_index + 1) % len(app.editors)) 
 	}
 	else if km.check(&app.bindings.new_file) {
-		new_file(app)
+		index := new_file(app)
+		focus_editor(app, index)
 	}
 	else if km.check(&app.bindings.save_file) {
 		// TODO: uncomment this when theres an option for line endings
