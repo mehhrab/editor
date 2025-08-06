@@ -142,44 +142,15 @@ app_main :: proc() {
 		rl.BeginDrawing()
 		rl.ClearBackground(app.theme.bg2)
 		
-		for editor, i in app.editors {
-			tab_w := screen_rect.width / f32(len(app.editors))
-			tab_rect := rl.Rectangle { f32(i) * tab_w, 0, tab_w, 40 }
-			rl.DrawRectangleRec(tab_rect, i == app.editor_index ? app.theme.bg : app.theme.bg2)
-			if len(app.editors) != 0 && i == app.editor_index {
-				if i != 0 {
-					rl.DrawTriangle(
-						{ tab_rect.x, tab_rect.y + tab_rect.height },
-						{ tab_rect.x + 40, tab_rect.y },
-						{ tab_rect.x, tab_rect.y }, 
-						app.theme.bg2)
-				}
-				if i != len(app.editors) - 1 {					
-					rl.DrawTriangle(
-						{ tab_rect.x + tab_rect.width, tab_rect.y }, 
-						{ tab_rect.x + tab_rect.width - 40, tab_rect.y },
-						{ tab_rect.x + tab_rect.width, tab_rect.y + tab_rect.height },
-						app.theme.bg2)
-				}
-			}
-			rl.BeginScissorMode(i32(tab_rect.x + 40), i32(tab_rect.y), i32(tab_rect.width - 40 * 2), i32(tab_rect.height))
-			name_cstring := strings.clone_to_cstring(editor.name, context.temp_allocator)			
-			text_w := rl.MeasureTextEx(app.font, name_cstring, 40, 0)[0]
-			text_pos := rl.Vector2 { tab_rect.x + tab_rect.width / 2 - text_w / 2, tab_rect.y }
-			rl.DrawTextEx(app.font, name_cstring, text_pos, 40, 0, i == app.editor_index ? app.theme.text : app.theme.text2)
-			rl.EndScissorMode()
-		}
-		
+		draw_tabs(&app, { 0, 0, screen_rect.width, 40 })		
 		ed.draw(code_editor(&app))
 		
 		if app.commands.visible {
 			co.draw(&app.commands)
 		}
-
 		if app.find.visible {
 			fi.draw(&app.find)
 		}
-		
 		if app.file_picker.visible {
 			fp.draw(&app.file_picker)
 		}
@@ -363,4 +334,37 @@ key_pressed :: proc(key: rl.KeyboardKey) -> bool {
 	rl.IsKeyDown(.LEFT_SHIFT) == false &&
 	rl.IsKeyDown(.LEFT_ALT) == false &&
 	rl.IsKeyDown(.LEFT_CONTROL) == false
+}
+
+draw_tabs :: proc(app: ^App, rect: rl.Rectangle) {
+	for editor, i in app.editors {
+		tab_w := rect.width / f32(len(app.editors))
+		tab_rect := rl.Rectangle { rect.x + f32(i) * tab_w, rect.y, tab_w, rect.height }
+		rl.DrawRectangleRec(tab_rect, i == app.editor_index ? app.theme.bg : app.theme.bg2)
+		if len(app.editors) != 0 && i == app.editor_index {
+			if i != 0 {
+				rl.DrawTriangle(
+					{ tab_rect.x, tab_rect.y + tab_rect.height },
+					{ tab_rect.x + 40, tab_rect.y },
+					{ tab_rect.x, tab_rect.y }, 
+					app.theme.bg2)
+			}
+			if i != len(app.editors) - 1 {					
+				rl.DrawTriangle(
+					{ tab_rect.x + tab_rect.width, tab_rect.y }, 
+					{ tab_rect.x + tab_rect.width - 40, tab_rect.y },
+					{ tab_rect.x + tab_rect.width, tab_rect.y + tab_rect.height },
+					app.theme.bg2)
+			}
+		}
+		rl.BeginScissorMode(i32(tab_rect.x + 40), i32(tab_rect.y), i32(tab_rect.width - 40 * 2), i32(tab_rect.height))
+		name_cstring := strings.clone_to_cstring(editor.name, context.temp_allocator)			
+		text_size := rl.MeasureTextEx(app.font, name_cstring, 40, 0)
+		text_pos := rl.Vector2 { 
+			tab_rect.x + tab_rect.width / 2 - text_size[0] / 2, 
+			tab_rect.y + tab_rect.height / 2 - text_size[1] / 2
+		}
+		rl.DrawTextEx(app.font, name_cstring, text_pos, 40, 0, i == app.editor_index ? app.theme.text : app.theme.text2)
+		rl.EndScissorMode()
+	}
 }
