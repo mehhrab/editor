@@ -229,8 +229,6 @@ open_file :: proc(app: ^App, file_path: string) -> int {
 	editor.highlight = true
 	editor.line_numbers = true
 
-	focus_editor(app, index)
-	
 	return index
 }
 

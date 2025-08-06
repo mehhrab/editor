@@ -188,7 +188,8 @@ file_picker_input :: proc(app: ^App) {
 	}
 	else if km.check(&app.bindings.confirm) {
 		if file_path, ok := fp.select(&app.file_picker).?; ok {
-			open_file(app, file_path)
+			index := open_file(app, file_path)
+			focus_editor(app, index)
 			file_picker_hide(app)
 		}
 	}
