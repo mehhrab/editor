@@ -142,15 +142,15 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 	else if km.check(&app.bindings.go_right_select) {
 		ed.go_right(editor, true)
 	}
-	else if km.key_pressed(.BACKSPACE) {
+	else if key_pressed(.BACKSPACE) {
 		ed.back_space(editor)
 		content_changed = true
 	}
-	else if km.key_pressed(.ENTER) {
+	else if key_pressed(.ENTER) {
 		ed.replace(editor, "\n")
 		content_changed = true
 	}
-	else if km.key_pressed(.TAB) {
+	else if key_pressed(.TAB) {
 		// TODO: add option to use spaces
 		ed.replace(editor, "\t")
 		content_changed = true

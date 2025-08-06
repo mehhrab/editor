@@ -357,3 +357,10 @@ style_from_theme :: proc(theme: ^Theme, font: rl.Font, font_size: f32) -> Style 
 	}
 	return style
 }
+
+key_pressed :: proc(key: rl.KeyboardKey) -> bool {
+	return (rl.IsKeyPressed(key) || rl.IsKeyPressedRepeat(key)) &&
+	rl.IsKeyDown(.LEFT_SHIFT) == false &&
+	rl.IsKeyDown(.LEFT_ALT) == false &&
+	rl.IsKeyDown(.LEFT_CONTROL) == false
+}
