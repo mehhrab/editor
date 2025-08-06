@@ -115,7 +115,9 @@ input :: proc(app: ^App) {
 }
 
 // NOTE: this is used for diffrent kind of editors, it shouldnt change anything outside of it
-editor_input :: proc(app: ^App, editor: ^ed.Editor) {
+editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
+	content_changed := false
+
 	if km.check(&app.bindings.go_up) {
 		ed.go_up(editor, false)
 	}
@@ -142,25 +144,33 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) {
 	}
 	else if km.key_pressed(.BACKSPACE) {
 		ed.back_space(editor)
+		content_changed = true
 	}
 	else if km.key_pressed(.ENTER) {
 		ed.replace(editor, "\n")
+		content_changed = true
 	}
 	else if km.key_pressed(.TAB) {
 		// TODO: add option to use spaces
 		ed.replace(editor, "\t")
+		content_changed = true
 	}
 	else if km.check(&app.bindings.undo) {
 		ed.undo(editor)
+		content_changed = true
 	}
 	else if km.check(&app.bindings.redo) {
 		ed.redo(editor)
+		content_changed = true
 	}
 	else if len(app.chars_pressed) != 0 {
 		for char in app.chars_pressed {
 			ed.replace(editor, fmt.tprint(char))
 		}
+		content_changed = true
 	}
+
+	return content_changed
 }
 
 find_input :: proc(app: ^App) {
@@ -171,8 +181,8 @@ find_input :: proc(app: ^App) {
 		find_next(app)
 	}
 	else {
-		editor_input(app, &app.find.input)
-		if len(&app.chars_pressed) != 0 {
+		content_changed := editor_input(app, &app.find.input)
+		if content_changed {
 			fi.calc_matches(&app.find)
 			_, match_range := fi.next(&app.find)
 			ed.select(editor(app), match_range)
@@ -207,9 +217,8 @@ commands_input :: proc(app: ^App) {
 		commands_hide(app)
 	}
 	else {
-		// TODO: broken
-		editor_input(app, &app.commands.input)
-		if len(&app.chars_pressed) != 0 {
+		content_changed := editor_input(app, &app.commands.input)
+		if content_changed {
 			co.refresh(&app.commands)
 		}
 	}
