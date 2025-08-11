@@ -89,34 +89,34 @@ keybinds_default :: proc() -> Keybinds {
 }
 
 input :: proc(app: ^App) {
-	if km.check(&app.bindings.find_show) {
+	if km.check(&app.keybinds.find_show) {
 		find_show(app)
 	}
-	else if km.check(&app.bindings.commands_show) {
+	else if km.check(&app.keybinds.commands_show) {
 		commands_show(app)
 	}
-	else if km.check(&app.bindings.file_picker_show) {
+	else if km.check(&app.keybinds.file_picker_show) {
 		file_picker_show(app)
 	}
-	else if km.check(&app.bindings.next_tab) {
+	else if km.check(&app.keybinds.next_tab) {
 		focus_editor(app, (app.editor_index + 1) % len(app.editors)) 
 	}
-	else if km.check(&app.bindings.new_file) {
+	else if km.check(&app.keybinds.new_file) {
 		index := new_file(app)
 		focus_editor(app, index)
 	}
-	else if km.check(&app.bindings.save_file) {
+	else if km.check(&app.keybinds.save_file) {
 		// TODO: uncomment this when theres an option for line endings
 		// save_file(app, app.editor_index)
 	}
-	else if km.check(&app.bindings.close_current_editor) {
+	else if km.check(&app.keybinds.close_current_editor) {
 		if 1 < len(app.editors) {			
 			ed.deinit(&app.editors[app.editor_index])
 			ordered_remove(&app.editors, app.editor_index)
 			focus_editor(app, len(app.editors) - 1)
 		}
 	}
-	else if km.check(&app.bindings.close_popup) {
+	else if km.check(&app.keybinds.close_popup) {
 		if app.find.visible {
 			find_cancel(app)
 		}
@@ -133,28 +133,28 @@ input :: proc(app: ^App) {
 editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 	content_changed := false
 
-	if km.check(&app.bindings.go_up) {
+	if km.check(&app.keybinds.go_up) {
 		ed.go_up(editor, false)
 	}
-	else if km.check(&app.bindings.go_down) {
+	else if km.check(&app.keybinds.go_down) {
 		ed.go_down(editor, false)
 	}
-	else if km.check(&app.bindings.go_left) {
+	else if km.check(&app.keybinds.go_left) {
 		ed.go_left(editor, false)
 	}
-	else if km.check(&app.bindings.go_right) {
+	else if km.check(&app.keybinds.go_right) {
 		ed.go_right(editor, false)
 	}
-	else if km.check(&app.bindings.go_up_select) {
+	else if km.check(&app.keybinds.go_up_select) {
 		ed.go_up(editor, true)
 	}
-	else if km.check(&app.bindings.go_down_select) {
+	else if km.check(&app.keybinds.go_down_select) {
 		ed.go_down(editor, true)
 	}
-	else if km.check(&app.bindings.go_left_select) {
+	else if km.check(&app.keybinds.go_left_select) {
 		ed.go_left(editor, true)
 	}
-	else if km.check(&app.bindings.go_right_select) {
+	else if km.check(&app.keybinds.go_right_select) {
 		ed.go_right(editor, true)
 	}
 	else if key_pressed(.BACKSPACE) {
@@ -174,30 +174,30 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 		}
 		content_changed = true
 	}
-	else if km.check(&app.bindings.select_line) {
+	else if km.check(&app.keybinds.select_line) {
 		for &cursor in editor.cursors {
 			ed.select_line(editor, &cursor)
 		}
 		ed.merge_cursors(editor)
 	}
-	else if km.check(&app.bindings.undo) {
+	else if km.check(&app.keybinds.undo) {
 		ed.undo(editor)
 		content_changed = true
 	}
-	else if km.check(&app.bindings.redo) {
+	else if km.check(&app.keybinds.redo) {
 		ed.redo(editor)
 		content_changed = true
 	}
-	else if km.check(&app.bindings.copy) {
+	else if km.check(&app.keybinds.copy) {
 		ed.copy(editor)
 	}
-	else if km.check(&app.bindings.cut) {
+	else if km.check(&app.keybinds.cut) {
 		ed.cut(editor)
 	}
-	else if km.check(&app.bindings.paste) {
+	else if km.check(&app.keybinds.paste) {
 		ed.paste(editor)
 	}
-	else if km.check(&app.bindings.add_cursor_above) {
+	else if km.check(&app.keybinds.add_cursor_above) {
 		abovest_line := ed.line_from_pos(editor, editor.cursors[0].head)
 		for &cursor in editor.cursors {
 			line := ed.line_from_pos(editor, cursor.head)
@@ -213,7 +213,7 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 			ed.add_cursor(editor, dest, dest)
 		}
 	}
-	else if km.check(&app.bindings.add_cursor_below) {
+	else if km.check(&app.keybinds.add_cursor_below) {
 		belowest_line := 0
 		for &cursor in editor.cursors {
 			line := ed.line_from_pos(editor, cursor.head)
@@ -229,7 +229,7 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 			ed.add_cursor(editor, dest, dest)
 		}
 	}
-	else if km.check(&app.bindings.remove_extra_cursors) {
+	else if km.check(&app.keybinds.remove_extra_cursors) {
 		ed.remove_extra_cursors(editor)
 	}
 	else if len(app.chars_pressed) != 0 {
@@ -245,10 +245,10 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 }
 
 find_input :: proc(app: ^App) {
-	if km.check(&app.bindings.find_confirm) {
+	if km.check(&app.keybinds.find_confirm) {
 		fi.hide(&app.find)
 	}
-	else if km.check(&app.bindings.find_next) {
+	else if km.check(&app.keybinds.find_next) {
 		find_next(app)
 	}
 	else {
@@ -263,13 +263,13 @@ find_input :: proc(app: ^App) {
 }
 
 file_picker_input :: proc(app: ^App) {
-	if km.check(&app.bindings.go_up) {
+	if km.check(&app.keybinds.go_up) {
 		fp.go_up(&app.file_picker)
 	}
-	else if km.check(&app.bindings.go_down) {
+	else if km.check(&app.keybinds.go_down) {
 		fp.go_down(&app.file_picker)
 	}
-	else if km.check(&app.bindings.confirm) {
+	else if km.check(&app.keybinds.confirm) {
 		if file_path, ok := fp.select(&app.file_picker).?; ok {
 			index := open_file(app, file_path)
 			focus_editor(app, index)
@@ -279,13 +279,13 @@ file_picker_input :: proc(app: ^App) {
 }
 
 commands_input :: proc(app: ^App) {
-	if km.check(&app.bindings.go_up) {
+	if km.check(&app.keybinds.go_up) {
 		co.go_up(&app.commands)
 	}
-	else if km.check(&app.bindings.go_down) {
+	else if km.check(&app.keybinds.go_down) {
 		co.go_down(&app.commands)
 	}
-	else if km.check(&app.bindings.confirm) {
+	else if km.check(&app.keybinds.confirm) {
 		commands_hide(app)
 	}
 	else {
