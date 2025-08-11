@@ -522,7 +522,9 @@ draw :: proc(editor: ^Editor) {
 	}
 	
 	// draw line numbers
-	if editor.line_numbers {		
+	if editor.line_numbers {
+		rl.DrawRectangleRec(lines_rect, style.bg_color)
+		
 		for i in first_line..=last_line {
 			number_color := style.text_color2
 			if i == line_from_pos(editor, editor.cursors[0].head) {
