@@ -21,9 +21,14 @@ Bindings :: struct {
 	go_right_select: km.Keybind,
 	go_up_select: km.Keybind,
 	go_down_select: km.Keybind,
+
+	select_line: km.Keybind,
 	
 	undo: km.Keybind,
 	redo: km.Keybind,
+	copy: km.Keybind,
+	cut: km.Keybind,
+	paste: km.Keybind,
 
 	find_show: km.Keybind,
 	find_confirm: km.Keybind,
@@ -39,7 +44,9 @@ Bindings :: struct {
 	close_current_editor: km.Keybind,
 	confirm: km.Keybind,
 
-	// select_line: km.Keybind,
+	add_cursor_above: km.Keybind,
+	add_cursor_below: km.Keybind,
+	remove_extra_cursors: km.Keybind,
 }
 
 bindings_default :: proc() -> Bindings {
@@ -54,8 +61,13 @@ bindings_default :: proc() -> Bindings {
 		go_up_select = km.keybind_init(.UP, shift = true),
 		go_down_select = km.keybind_init(.DOWN, shift = true),
 
+		select_line = km.keybind_init(.L, control = true),
+
 		undo = km.keybind_init(.Z, control = true),
 		redo = km.keybind_init(.Z, shift = true, control = true),
+		copy = km.keybind_init(.C, control = true),
+		cut = km.keybind_init(.X, control = true),
+		paste = km.keybind_init(.V, control = true),
 
 		find_show = km.keybind_init(.F, control = true),
 		find_confirm = km.keybind_init(.ENTER, control = true),
@@ -70,6 +82,10 @@ bindings_default :: proc() -> Bindings {
 		save_file = km.keybind_init(.S, control = true),
 		close_current_editor = km.keybind_init(.W, control = true),
 		confirm = km.keybind_init(.ENTER),
+
+		add_cursor_above = km.keybind_init(.UP, alt = true, control = true),
+		add_cursor_below = km.keybind_init(.DOWN, alt = true, control = true),
+		remove_extra_cursors = km.keybind_init(.ESCAPE),
 	}
 }
 
@@ -147,13 +163,23 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 		content_changed = true
 	}
 	else if key_pressed(.ENTER) {
-		ed.replace(editor, "\n")
+		for &cursor in editor.cursors {
+			ed.replace(editor, &cursor, "\n")
+		}
 		content_changed = true
 	}
 	else if key_pressed(.TAB) {
 		// TODO: add option to use spaces
-		ed.replace(editor, "\t")
+		for &cursor in editor.cursors {
+			ed.replace(editor, &cursor, "\t")
+		}
 		content_changed = true
+	}
+	else if km.check(&app.bindings.select_line) {
+		for &cursor in editor.cursors {
+			ed.select_line(editor, &cursor)
+		}
+		ed.merge_cursors(editor)
 	}
 	else if km.check(&app.bindings.undo) {
 		ed.undo(editor)
@@ -163,9 +189,55 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 		ed.redo(editor)
 		content_changed = true
 	}
+	else if km.check(&app.bindings.copy) {
+		ed.copy(editor)
+	}
+	else if km.check(&app.bindings.cut) {
+		ed.cut(editor)
+	}
+	else if km.check(&app.bindings.paste) {
+		ed.paste(editor)
+	}
+	else if km.check(&app.bindings.add_cursor_above) {
+		abovest_line := ed.line_from_pos(editor, editor.cursors[0].head)
+		for &cursor in editor.cursors {
+			line := ed.line_from_pos(editor, cursor.head)
+			if line <= abovest_line {
+				abovest_line = line
+			}
+		}
+		abovest_line -= 1
+		if 0 <= abovest_line {
+			dest := editor.buffer.line_ranges[abovest_line].start
+			dest += ed.col_visual_to_real(editor, abovest_line, editor.cursors[0].last_col)
+			dest = ed.clamp_in_line(editor, dest, abovest_line)
+			ed.add_cursor(editor, dest, dest)
+		}
+	}
+	else if km.check(&app.bindings.add_cursor_below) {
+		belowest_line := 0
+		for &cursor in editor.cursors {
+			line := ed.line_from_pos(editor, cursor.head)
+			if belowest_line <= line {
+				belowest_line = line
+			}
+		}
+		belowest_line += 1
+		if belowest_line <= len(editor.buffer.line_ranges) - 1 {			
+			dest := editor.buffer.line_ranges[belowest_line].start
+			dest += ed.col_visual_to_real(editor, belowest_line, editor.cursors[0].last_col)
+			dest = ed.clamp_in_line(editor, dest, belowest_line)
+			ed.add_cursor(editor, dest, dest)
+		}
+	}
+	else if km.check(&app.bindings.remove_extra_cursors) {
+		ed.remove_extra_cursors(editor)
+	}
 	else if len(app.chars_pressed) != 0 {
 		for char in app.chars_pressed {
-			ed.replace(editor, fmt.tprint(char))
+			for &cursor in editor.cursors {
+				ed.replace(editor, &cursor, fmt.tprint(char))
+			}
 		}
 		content_changed = true
 	}
@@ -185,7 +257,8 @@ find_input :: proc(app: ^App) {
 		if content_changed {
 			fi.calc_matches(&app.find)
 			_, match_range := fi.next(&app.find)
-			ed.select(editor(app), match_range)
+			ed.remove_extra_cursors(editor(app))
+			ed.select(editor(app), &editor(app).cursors[0], match_range)
 		}
 	}
 }

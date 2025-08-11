@@ -19,7 +19,7 @@ Editor :: struct {
 
 	buffer: buf.Buffer,
 	
-	cursor: Cursor,
+	cursors: [dynamic]Cursor,
 	hide_cursor: bool,
 	scroll_x: f32,
 	scroll_y: f32,
@@ -51,6 +51,9 @@ Undo :: struct {
 	text: string,
 	change_range: Range,
 	time: f32,
+	cursor: Cursor,
+	cursors_before: []Cursor,
+	cursors_after: []Cursor,
 }
 
 Undo_Kind :: enum {
@@ -74,6 +77,7 @@ init :: proc(editor: ^Editor, style: ^Style, buffer: ^buf.Buffer, path, name: st
 	editor.buffer = buffer^
 	editor.path = strings.clone(path)
 	editor.name = strings.clone(name)
+	add_cursor(editor, 0, 0)
 }
 
 deinit :: proc(editor: ^Editor) {
@@ -85,31 +89,48 @@ deinit :: proc(editor: ^Editor) {
 		undo_deinit(&undo)
 	}
 	delete(editor.undos)
+	delete(editor.cursors)
 }
 
-selected_text :: proc(editor: ^Editor) -> string {
-	range := cursor_to_range(&editor.cursor)
+add_cursor :: proc(editor: ^Editor, anchor, head: int) {
+	cursor := Cursor {
+		anchor = anchor,
+		head = head,
+		last_col = 0,
+	}
+	remember_col(editor, &cursor)
+	append(&editor.cursors, cursor)
+}
+
+select :: proc(editor: ^Editor, cursor: ^Cursor, range: Range) {
+	goto(editor, cursor, range.start)
+	goto(editor, cursor, range.end, true)
+}
+
+selected_text :: proc(editor: ^Editor, cursor: ^Cursor) -> string {
+	range := cursor_to_range(cursor)
 	return string(editor.buffer.content[range.start:range.end])
-}
-
-select :: proc(editor: ^Editor, range: Range) {
-	goto(editor, range.start)
-	goto(editor, range.end, true)
 }
 
 all :: proc(editor: ^Editor) -> Range {
 	return { 0, len(editor.buffer.content)}
 }
 
-goto :: proc(editor: ^Editor, pos: int, select := false, remember_col := true) {
+goto :: proc(editor: ^Editor, cursor: ^Cursor, pos: int, select := false, remember_column := true) {
 	pos := clamp(pos, 0, len(editor.buffer.content))
 	if select == false {
-		editor.cursor.anchor = pos
+		cursor.anchor = pos
 	}
-	editor.cursor.head = pos	
+	cursor.head = pos	
 
-	if remember_col {
-		save_col(editor)
+	if remember_column {
+		remember_col(editor, cursor)
+	}
+}
+
+remove_extra_cursors :: proc(editor: ^Editor, loc := #caller_location) {
+	for i := len(editor.cursors) - 1; i >= 1 ; i -= 1 {
+		ordered_remove(&editor.cursors, i)
 	}
 }
 
@@ -120,13 +141,13 @@ cursor_to_range :: proc(cursor: ^Cursor) -> Range {
 	}
 }
 
-has_selection :: proc(editor: ^Editor) -> bool {
-	return editor.cursor.head != editor.cursor.anchor
+has_selection :: proc(editor: ^Editor, cursor: ^Cursor) -> bool {
+	return cursor.head != cursor.anchor
 }
 
-save_col :: proc(editor: ^Editor) {
-	line := line_from_pos(editor, editor.cursor.head)
-	editor.cursor.last_col = col_real_to_visual(editor, line)
+remember_col :: proc(editor: ^Editor, cursor: ^Cursor) {
+	line := line_from_pos(editor, cursor.head)
+	cursor.last_col = col_real_to_visual(editor, line, cursor.head)
 }
 
 line_from_pos :: proc(editor: ^Editor, pos: int) -> int {
@@ -146,152 +167,206 @@ clamp_in_line :: proc(editor: ^Editor, pos, line: int) -> int {
 	return clamp(pos, editor.buffer.line_ranges[line].start, editor.buffer.line_ranges[line].end)
 }
 
-insert :: proc(editor: ^Editor, text: string, goto_end := true) -> Range {
-	change_range := insert_raw(editor, text, goto_end)
-	push_undo(editor, .Insert, change_range, text)
+insert :: proc(editor: ^Editor, cursor: ^Cursor, text: string, goto_end := true) -> Range {
+	cursors_before := slice.clone(editor.cursors[:], context.temp_allocator)
+	change_range := insert_raw(editor, cursor, text, goto_end)
+	cursors_after := slice.clone(editor.cursors[:], context.temp_allocator)
+	push_undo(editor, .Insert, change_range, text, cursors_before, cursors_after)
 	return change_range
 }
 
-insert_raw :: proc(editor: ^Editor, text: string, goto_end := true) -> Range {
-	change_range := Range { editor.cursor.head, editor.cursor.head + len(text) }
+insert_raw :: proc(editor: ^Editor, cursor: ^Cursor, text: string, goto_end := true) -> Range {
+	change_range := Range { cursor.head, cursor.head + len(text) }
 	
-	inject_at_elems(&editor.buffer.content, editor.cursor.head, ..transmute([]byte)text)
+	inject_at_elems(&editor.buffer.content, cursor.head, ..transmute([]byte)text)
 	buf.calc_line_ranges(&editor.buffer)
+	
+	for &other in editor.cursors {
+		if cursor.head < other.head {
+			other.anchor += len(text)
+			other.head += len(text)
+		}
+	}
+
 	if goto_end {
-		goto(editor, editor.cursor.head + len(text))
+		goto(editor, cursor, cursor.head + len(text))
 	}
 
 	return change_range
 }
 
-remove :: proc(editor: ^Editor, goto_start := true) -> Range {
-	// clone this since we are gonna remove the selection one line later
-	text := strings.clone(selected_text(editor), context.temp_allocator)
-	change_range := remove_raw(editor, goto_start)	
-	push_undo(editor, .Delete, change_range, text)
+remove :: proc(editor: ^Editor, cursor: ^Cursor, goto_start := true) -> Range {
+	text := strings.clone(selected_text(editor, cursor), context.temp_allocator)
+	cursors_before := slice.clone(editor.cursors[:], context.temp_allocator)
+	change_range := remove_raw(editor, cursor, goto_start)
+	cursors_after := slice.clone(editor.cursors[:], context.temp_allocator)
+	push_undo(editor, .Delete, change_range, text, cursors_before, cursors_after)
 	return change_range
 }
 
-remove_raw :: proc(editor: ^Editor, goto_start := true) -> Range {
-	change_range := cursor_to_range(&editor.cursor)
+remove_raw :: proc(editor: ^Editor, cursor: ^Cursor, goto_start := true) -> Range {
+	change_range := cursor_to_range(cursor)
+
 	remove_range(&editor.buffer.content, change_range.start, change_range.end)
 	buf.calc_line_ranges(&editor.buffer)
-	if goto_start {
-		goto(editor, change_range.start)
+
+	for &other in editor.cursors {
+		if cursor.head < other.head {
+			diff := change_range.end - change_range.start
+			other.head -= diff
+			other.anchor -= diff
+		}
 	}
+
+	if goto_start {
+		goto(editor, cursor, change_range.start)
+	}
+
 	return change_range
 }
 
-replace :: proc(editor: ^Editor, text: string) -> (Range, Range) {
-	removed_range := remove(editor)
-	inserted_range := insert(editor, text)
+// TODO: add cursor_replace_raw
+replace :: proc(editor: ^Editor, cursor: ^Cursor, text: string) -> (Range, Range) {
+	removed_range := remove(editor, cursor)
+	inserted_range := insert(editor, cursor, text)
 	return removed_range, inserted_range
 }
 
-clear :: proc(editor: ^Editor) {
-	goto(editor, 0)
-	goto(editor, len(editor.buffer.content), true)
-	remove(editor)
+remove_all :: proc(editor: ^Editor) {
+	remove_extra_cursors(editor)
+	select(editor, &editor.cursors[0], all(editor))
+	remove(editor, &editor.cursors[0])
 }
 
 go_right :: proc(editor: ^Editor, select := false) {
-	dest := 0
-	if has_selection(editor) && select == false {
-		cursor_range := cursor_to_range(&editor.cursor)
-		dest = cursor_range.end
+	for &cursor in editor.cursors {
+		dest := 0
+		if has_selection(editor, &cursor) && select == false {
+			cursor_range := cursor_to_range(&cursor)
+			dest = cursor_range.end
+		}
+		else {
+			dest = cursor.head + 1
+		}
+		goto(editor, &cursor, dest, select)
 	}
-	else {
-		dest = editor.cursor.head + 1
-	}
-	goto(editor, dest, select)
+	merge_cursors(editor)
 }
 
 go_left :: proc(editor: ^Editor, select := false) {
-	dest := 0
-	if has_selection(editor) && select == false {
-		cursor_range := cursor_to_range(&editor.cursor)
-		dest = cursor_range.start
+	for &cursor in editor.cursors {
+		dest := 0
+		if has_selection(editor, &cursor) && select == false {
+			cursor_range := cursor_to_range(&cursor)
+			dest = cursor_range.start
+		}
+		else {
+			dest = cursor.head - 1
+		}
+		goto(editor, &cursor, dest, select)	
 	}
-	else {
-		dest = editor.cursor.head - 1
-	}
-	goto(editor, dest, select)	
+	merge_cursors(editor)
 }
 
 go_up :: proc(editor: ^Editor, select := false) {
-	dest := 0
-	line := line_from_pos(editor, editor.cursor.head)
-	if 0 < line {
-		dest = editor.buffer.line_ranges[line - 1].start
-		dest += col_visual_to_real(editor, line - 1)
-		dest = clamp_in_line(editor, dest, line - 1)
+	for &cursor in editor.cursors {
+		dest := 0
+		line := line_from_pos(editor, cursor.head)
+		if 0 < line {
+			dest = editor.buffer.line_ranges[line - 1].start
+			dest += col_visual_to_real(editor, line - 1, cursor.last_col)
+			dest = clamp_in_line(editor, dest, line - 1,)
+		}
+		goto(editor, &cursor, dest, select, false)	
 	}
-	goto(editor, dest, select, false)	
+	merge_cursors(editor)
 }
 
 go_down :: proc(editor: ^Editor, select := false) {
-	dest := 0
-	line := line_from_pos(editor, editor.cursor.head)
-	if len(editor.buffer.line_ranges) - 1 <= line {
-		dest = len(editor.buffer.content)
+	for &cursor in editor.cursors {		
+		dest := 0
+		line := line_from_pos(editor, cursor.head)
+		if len(editor.buffer.line_ranges) - 1 <= line {
+			dest = len(editor.buffer.content)
+		}
+		else {
+			dest = editor.buffer.line_ranges[line + 1].start
+			dest += col_visual_to_real(editor, line + 1, cursor.last_col)
+			dest = clamp_in_line(editor, dest, line + 1)
+		}
+		goto(editor, &cursor, dest, select, false)	
 	}
-	else {
-		dest = editor.buffer.line_ranges[line + 1].start
-		dest += col_visual_to_real(editor, line + 1)
-		dest = clamp_in_line(editor, dest, line + 1)
-	}
-	goto(editor, dest, select, false)	
+	merge_cursors(editor)
 }
 
 back_space :: proc(editor: ^Editor) {
-	if has_selection(editor) == false {
-		goto(editor, editor.cursor.head - 1, true)
-	} 
-	remove(editor)
+	for &cursor in editor.cursors {		
+		if has_selection(editor, &cursor) == false {
+			goto(editor, &cursor, cursor.head - 1, true)
+		} 
+	}
+	for &cursor in editor.cursors {		
+		remove(editor, &cursor)
+	}
 }
 
-select_line :: proc(editor: ^Editor) {
-	line := line_from_pos(editor, editor.cursor.head)
+select_line :: proc(editor: ^Editor, cursor: ^Cursor) {
+	line := line_from_pos(editor, cursor.head)
 	line_range := editor.buffer.line_ranges[line]
-	goto(editor, line_range.start, has_selection(editor))
-	goto(editor, line_range.end + 1, true)
+	line_range.end += 1
+	if has_selection(editor, cursor) == false {
+		goto(editor, cursor, line_range.start)
+	}
+	goto(editor, cursor, line_range.end, true)
 }
 
 copy :: proc(editor: ^Editor) {
-	if has_selection(editor) {
-		range := cursor_to_range(&editor.cursor)
-		text := string(editor.buffer.content[range.start:range.end])
-		rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
+	text := ""
+	for &cursor in editor.cursors {
+		if has_selection(editor, &cursor) {
+			range := cursor_to_range(&cursor)
+			selected_text := string(editor.buffer.content[range.start:range.end])
+			text = strings.join({ text, selected_text }, "", context.temp_allocator)
+		}
+		else {
+			line := line_from_pos(editor, cursor.head)
+			range := editor.buffer.line_ranges[line]
+			line_text := string(editor.buffer.content[range.start:range.end])
+			text = strings.join({ text, line_text }, "", context.temp_allocator)
+		}
 	}
-	else {
-		line := line_from_pos(editor, editor.cursor.head)
-		range := editor.buffer.line_ranges[line]
-		text := string(editor.buffer.content[range.start:range.end])
-		rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
-	}
+	rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
 }
 
 cut :: proc(editor: ^Editor) {
-	range := Range {}
-	if has_selection(editor) {
-		range = cursor_to_range(&editor.cursor)
-		text := string(editor.buffer.content[range.start:range.end])
-		rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
+	text := ""
+	for &cursor in editor.cursors {
+		if has_selection(editor, &cursor) {
+			range := cursor_to_range(&cursor)
+			selected_text := string(editor.buffer.content[range.start:range.end])
+			text = strings.join({ text, selected_text }, "", context.temp_allocator)
+		}
+		else {
+			line := line_from_pos(editor, cursor.head)
+			range := editor.buffer.line_ranges[line]
+			select(editor, &cursor, range)
+			line_text := string(editor.buffer.content[range.start:range.end])
+			text = strings.join({ text, line_text }, "", context.temp_allocator)
+		}
 	}
-	else {
-		line := line_from_pos(editor, editor.cursor.head)
-		range = editor.buffer.line_ranges[line]
-		text := string(editor.buffer.content[range.start:range.end])
-		rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
+	merge_cursors(editor)
+	for &cursor in editor.cursors {
+		remove(editor, &cursor)
 	}
-	select(editor, range)
-	remove(editor)
+	rl.SetClipboardText(strings.clone_to_cstring(text, context.temp_allocator))
 }
 
 paste :: proc(editor: ^Editor) {
-	remove(editor)
-	text := strings.clone_from_cstring(rl.GetClipboardText(), context.temp_allocator)
-	insert(editor, text)
+	for &cursor in editor.cursors {		
+		remove(editor, &cursor)
+		text := strings.clone_from_cstring(rl.GetClipboardText(), context.temp_allocator)
+		insert(editor, &cursor, text)
+	}
 }
 
 draw :: proc(editor: ^Editor) {
@@ -317,14 +392,14 @@ draw :: proc(editor: ^Editor) {
 
 	rl.DrawRectangleRec(editor.rect, style.bg_color)
 	
-	current_line := line_from_pos(editor, editor.cursor.head)
+	current_line := line_from_pos(editor, editor.cursors[0].head)
 	
 	look_ahead_x := f32(80)
 	look_ahead_y := f32(80)
 
 	// calculate scroll_x
 	cursor_x := f32(0)
-	for i in buffer.line_ranges[current_line].start..<editor.cursor.head {
+	for i in buffer.line_ranges[current_line].start..<editor.cursors[0].head {
 		char := buffer.content[i]
 		char_cstring := fmt.ctprint(rune(char))
 		char_w := rl.MeasureTextEx(style.font, char_cstring, 40, 0)[0]
@@ -417,11 +492,13 @@ draw :: proc(editor: ^Editor) {
 			char_w = rl.MeasureTextEx(style.font, "    ", 40, 0)[0]
 		}
 
-		// draw selection
-		cursor_range := cursor_to_range(&editor.cursor)
-		if cursor_range.start <= char_index && char_index < cursor_range.end {
-			rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, style.select_color)
-		} 
+		// draw selections
+		for &cursor in editor.cursors {			
+			cursor_range := cursor_to_range(&cursor)
+			if cursor_range.start <= char_index && char_index < cursor_range.end {
+				rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, style.select_color)
+			} 
+		}
 
 		// draw highlighted ranges
 		for range in editor.highlighted_ranges {
@@ -448,7 +525,7 @@ draw :: proc(editor: ^Editor) {
 	if editor.line_numbers {		
 		for i in first_line..=last_line {
 			number_color := style.text_color2
-			if i == line_from_pos(editor, editor.cursor.head) {
+			if i == line_from_pos(editor, editor.cursors[0].head) {
 				number_color = style.text_color
 			}
 			pos := rl.Vector2 { lines_rect.x + 10, lines_rect.y + f32(i) * 40 + scroll_y^ }
@@ -467,19 +544,21 @@ draw :: proc(editor: ^Editor) {
 
 	// draw cursor
 	if editor.hide_cursor == false {
-		line := line_from_pos(editor, editor.cursor.head)
-		cursor_x := code_rect.x + scroll_x^
-		cursor_y := code_rect.y + f32(line) * 40 + scroll_y^
-		for i in buffer.line_ranges[line].start..<editor.cursor.head {
-			char := rune(buffer.content[i])
-			char_cstring := fmt.ctprint(char)
-			char_w := rl.MeasureTextEx(style.font, char_cstring, 40, 0)[0]
-			if char == '\t' {
-				char_w = rl.MeasureTextEx(style.font, "    ", 40, 0)[0]
+		for &cursor in editor.cursors {			
+			line := line_from_pos(editor, cursor.head)
+			cursor_x := code_rect.x + scroll_x^
+			cursor_y := code_rect.y + f32(line) * 40 + scroll_y^
+			for i in buffer.line_ranges[line].start..<cursor.head {
+				char := rune(buffer.content[i])
+				char_cstring := fmt.ctprint(char)
+				char_w := rl.MeasureTextEx(style.font, char_cstring, 40, 0)[0]
+				if char == '\t' {
+					char_w = rl.MeasureTextEx(style.font, "    ", 40, 0)[0]
+				}
+				cursor_x += char_w
 			}
-			cursor_x += char_w
+			rl.DrawRectangleRec({ cursor_x, cursor_y, 2, 40 }, style.caret_color)
 		}
-		rl.DrawRectangleRec({ cursor_x, cursor_y, 2, 40 }, style.caret_color)
 	}
 	rl.EndScissorMode()
 }
@@ -511,10 +590,11 @@ scroll_center_v :: proc(editor: ^Editor, pos: int) {
 	}
 }
 
-col_visual_to_real :: proc(editor: ^Editor, line: int) -> int {
+// TODO: remove this shit
+col_visual_to_real :: proc(editor: ^Editor, line: int, col_vis: int) -> int {
 	line_range := editor.buffer.line_ranges[line]
 	col := 0
-	to_move := editor.cursor.last_col
+	to_move := col_vis
 	for {
 		i := line_range.start + col
 		if len(editor.buffer.content) <= i {
@@ -541,9 +621,10 @@ col_visual_to_real :: proc(editor: ^Editor, line: int) -> int {
 	return col
 }
 
-col_real_to_visual :: proc(editor: ^Editor, line: int) -> int {
+// TODO: remove this shit
+col_real_to_visual :: proc(editor: ^Editor, line: int, col_real: int) -> int {
 	col := 0
-	for i in editor.buffer.line_ranges[line].start..<editor.cursor.head {
+	for i in editor.buffer.line_ranges[line].start..<col_real {
 		c := editor.buffer.content[i]
 		if c == '\t' {
 			col += 4
@@ -559,16 +640,19 @@ undo :: proc(editor: ^Editor) {
 	for 1 <= editor.undo_index {
 		editor.undo_index -= 1
 		undo := editor.undos[editor.undo_index]
-
+		
+		cursor := Cursor {}
 		if undo.kind == .Insert {
-			select(editor, undo.change_range)
-			remove_raw(editor)
+			select(editor, &cursor, undo.change_range)
+			remove_raw(editor, &cursor)
 		}
 		else if undo.kind == .Delete {
-			goto(editor, undo.change_range.start)
-			insert_raw(editor, undo.text)
-			select(editor, undo.change_range)
+			goto(editor, &cursor, undo.change_range.start)
+			insert_raw(editor, &cursor, undo.text)
 		}
+
+		clear(&editor.cursors)
+		append(&editor.cursors, ..undo.cursors_before[:])
 		
 		can_be_mereged := 1 <= editor.undo_index && 
 		(undo.time - editor.undos[editor.undo_index - 1].time) < 0.3
@@ -586,13 +670,19 @@ redo :: proc(editor: ^Editor) {
 	for editor.undo_index <= len(editor.undos) - 1 {
 		undo := editor.undos[editor.undo_index]
 
+		cursor := Cursor {}
+
 		if undo.kind == .Insert {
-			insert_raw(editor, undo.text)
+			goto(editor, &cursor, undo.change_range.start)
+			insert_raw(editor, &cursor, undo.text, false)
 		}
 		else if undo.kind == .Delete {
-			select(editor, undo.change_range)
-			remove_raw(editor)
+			select(editor, &cursor, undo.change_range)
+			remove_raw(editor, &cursor)
 		}
+
+		clear(&editor.cursors)
+		append(&editor.cursors, ..undo.cursors_after[:])
 
 		can_be_mereged := editor.undo_index + 1 <= len(editor.undos) - 1 && 
 		(editor.undos[editor.undo_index + 1].time - undo.time) < 0.3
@@ -608,25 +698,69 @@ redo :: proc(editor: ^Editor) {
 	}
 }
 
-push_undo :: proc(editor: ^Editor, kind: Undo_Kind, range: Range, text: string) {
+push_undo :: proc(
+	editor: ^Editor, 
+	kind: Undo_Kind, 
+	range: Range, 
+	text: string,
+	cursors_before: []Cursor,
+	cursors_after: []Cursor,
+) {
 	for i := len(editor.undos) - 1; editor.undo_index <= i; i -= 1 {
 		undo := pop(&editor.undos)
 		undo_deinit(&undo)
 	}
-
-	append(&editor.undos, Undo {
-		kind = kind,
+	
+	undo := Undo {
 		change_range = range,
+		kind = kind,
 		text = strings.clone(text),
 		time = f32(rl.GetTime()),
-	})
+		cursors_before = slice.clone(cursors_before),
+		cursors_after = slice.clone(cursors_after),
+	}
+	append(&editor.undos, undo)
+
 	editor.undo_index += 1
 }
 
 undo_deinit :: proc(undo: ^Undo) {
 	delete(undo.text)
+	delete(undo.cursors_before)
+	delete(undo.cursors_after)
 }
 
 set_style :: proc(editor: ^Editor, style: Style) {
 	editor.style = style
+}
+
+// TODO: rewrite this
+merge_cursors :: proc(editor: ^Editor) {
+	to_remove := make([dynamic]int, context.temp_allocator)
+	#reverse for &cursor, i in editor.cursors {
+		#reverse for &other, j in editor.cursors {
+			if i != j && cursor == other {
+				if slice.contains(to_remove[:], j) == false {
+					append(&to_remove, j)
+				}
+			}
+			else if i != j {
+				cursor_range := cursor_to_range(&cursor)
+				other_range := cursor_to_range(&other)
+				if cursor_range.start <= other.head && other.head <= cursor_range.end {
+					if slice.contains(to_remove[:], j) == false {
+						cursor.anchor = other.anchor
+						append(&to_remove, j)
+					}
+				}
+			}
+		}
+	}
+	slice.sort(to_remove[:])
+	#reverse for i in to_remove {
+		if len(editor.cursors) == 1 {
+			break
+		}
+		ordered_remove(&editor.cursors, i)
+	}
 }

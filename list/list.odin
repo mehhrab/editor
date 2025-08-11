@@ -33,13 +33,13 @@ deinit :: proc(list: ^List) {
 add_items :: proc(list: ^List, items: []string) {
 	content := &list.content.buffer.content
 	if 1 <= len(content) && content[len(content) - 1] != '\n' {
-		ed.insert_raw(&list.content, "\n") 
+		ed.insert_raw(&list.content, &list.content.cursors[0], "\n") 
 	}
 
 	for item, i in items {
-		ed.insert_raw(&list.content, item)
+		ed.insert_raw(&list.content, &list.content.cursors[0], item) 
 		if i != len(items) - 1 {
-			ed.insert_raw(&list.content, "\n") 
+			ed.insert_raw(&list.content, &list.content.cursors[0], "\n") 
 		}
 	}
 }
@@ -71,7 +71,7 @@ draw :: proc(list: ^List) {
 }
 
 get_current_item :: proc(list: ^List, aloc := context.allocator) -> (int, string) {
-	index := ed.line_from_pos(&list.content, list.content.cursor.head)
+	index := ed.line_from_pos(&list.content, list.content.cursors[0].head)
 	line_range := list.content.buffer.line_ranges[index]
 	item := string(list.content.buffer.content[line_range.start:line_range.end])
 	return index, strings.clone(item, aloc)
@@ -80,12 +80,12 @@ get_current_item :: proc(list: ^List, aloc := context.allocator) -> (int, string
 set_current_item :: proc(list: ^List, index: int) {
 	if 0 <= index && index <= len(list.content.buffer.line_ranges) - 1 {		
 		line_range := list.content.buffer.line_ranges[index]
-		ed.goto(&list.content, line_range.start)	
+		ed.goto(&list.content, &list.content.cursors[0], line_range.start)	
 	} 
 }
 
 clear :: proc(list: ^List) {
-	ed.clear(&list.content)
+	ed.remove_all(&list.content)
 }
 
 set_rect :: proc(list: ^List, rect: rl.Rectangle) {

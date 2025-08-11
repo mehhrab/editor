@@ -83,7 +83,7 @@ go_down :: proc(commands: ^Commands) {
 
 replace :: proc(commands: ^Commands, text: string) {
 	refresh(commands)
-	ed.replace(&commands.input, text)	
+	ed.replace(&commands.input, &commands.input.cursors[0], text)	
 }
 
 refresh :: proc(commands: ^Commands) {
@@ -153,7 +153,7 @@ set_rect :: proc(commands: ^Commands, rect: rl.Rectangle) {
 
 show :: proc(commands: ^Commands) {
 	commands.visible = true
-	ed.select(&commands.input, ed.all(&commands.input))
+	ed.select(&commands.input, &commands.input.cursors[0], ed.all(&commands.input))
 }
 
 hide :: proc(commands: ^Commands) {

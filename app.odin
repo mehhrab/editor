@@ -30,7 +30,7 @@ App :: struct {
 	
 	find: fi.Find,
 	// might move these outta here idk
-	cursor_before_search: ed.Cursor,
+	cursors_before_search: []ed.Cursor,
 	scroll_x_before_search: f32,
 	scroll_y_before_search: f32,
 	
@@ -82,6 +82,7 @@ app_main :: proc() {
 	app.style = style_from_theme(&app.theme, app.font, app.font_size)
 	app.bindings = bindings_default()
 	defer delete(app.chars_pressed)
+	defer delete(app.cursors_before_search)
 
 	defer {
 		for &editor in app.editors {
@@ -142,7 +143,7 @@ app_main :: proc() {
 		rl.BeginDrawing()
 		rl.ClearBackground(app.theme.bg2)
 		
-		draw_tabs(&app, { 0, 0, screen_rect.width, 40 })		
+		draw_tabs(&app, { 0, 0, screen_rect.width, 40 })
 		ed.draw(code_editor(&app))
 		
 		if app.commands.visible {
@@ -223,15 +224,15 @@ find_show :: proc(app: ^App) {
 	
 	editor := editor(app)
 	
+	app.cursors_before_search = slice.clone(editor.cursors[:])
+	app.scroll_x_before_search = editor.scroll_x
+	app.scroll_y_before_search = editor.scroll_y
+
 	fi.set_text(&app.find, string(editor.buffer.content[:]))
-	fi.show(&app.find, ed.selected_text(editor))
+	fi.show(&app.find, ed.selected_text(editor, &editor.cursors[0]))
 	
 	clear(&editor.highlighted_ranges)
 	append(&editor.highlighted_ranges, ..fi.calc_matches(&app.find))
-
-	app.cursor_before_search = editor.cursor
-	app.scroll_x_before_search = editor.scroll_x
-	app.scroll_y_before_search = editor.scroll_y
 }
 
 find_hide :: proc(app: ^App) {
@@ -242,7 +243,8 @@ find_hide :: proc(app: ^App) {
 find_cancel :: proc(app: ^App) {
 	editor := editor(app)
 
-	editor.cursor = app.cursor_before_search 
+	clear(&editor.cursors)
+	append(&editor.cursors, ..app.cursors_before_search) 
 	editor.scroll_x = app.scroll_x_before_search 
 	editor.scroll_y = app.scroll_y_before_search 
 
@@ -250,9 +252,11 @@ find_cancel :: proc(app: ^App) {
 }
 
 find_next :: proc(app: ^App) {
+	editor := editor(app)
+	ed.remove_extra_cursors(editor)
 	_, match := fi.next(&app.find)
-	ed.select(editor(app), match)
-	ed.scroll_center_v(editor(app), match.start)
+	ed.select(editor, &editor.cursors[0], match)
+	ed.scroll_center_v(editor, match.start)
 }
 
 file_picker_show :: proc(app: ^App) {

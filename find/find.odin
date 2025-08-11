@@ -78,9 +78,8 @@ next :: proc(find: ^Find) -> (int, rg.Range) {
 }
 
 insert :: proc(find: ^Find, text: string) {
-	ed.insert(&find.input, text)
+	ed.insert(&find.input, &find.input.cursors[0], text)
 	matches := calc_matches(find)
-	// index, range := next(find)
 }
 
 draw :: proc(find: ^Find) {
@@ -92,11 +91,11 @@ show :: proc(find: ^Find, word := "") {
 	find.visible = true
 
 	if word != "" {
-		ed.select(&find.input, ed.all(&find.input))
-		ed.remove(&find.input)
-		ed.insert(&find.input, word)
+		ed.select(&find.input, &find.input.cursors[0], ed.all(&find.input))
+		ed.remove(&find.input, &find.input.cursors[0])
+		ed.insert(&find.input, &find.input.cursors[0], word)
 	}
-	ed.select(&find.input, ed.all(&find.input))
+	ed.select(&find.input, &find.input.cursors[0], ed.all(&find.input))
 }
 
 hide :: proc(find: ^Find) {
