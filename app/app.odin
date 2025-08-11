@@ -76,7 +76,7 @@ init :: proc(app: ^App, keybinds: Keybinds, theme: Theme) {
 		"Close File",
 	})
 
-	open_file(app, path.join({ app.current_dir, "app\\app.odin" }, context.temp_allocator))
+	open_file(app, path.join({ app.current_dir, "app", "app.odin" }, context.temp_allocator))
 }
 
 deinit :: proc(app: ^App) {
