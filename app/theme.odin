@@ -1,7 +1,7 @@
-package main
+package app
 
 import rl "vendor:raylib"
-import sy "syntax"
+import sy "../syntax"
 
 Theme :: struct {
 	bg: rl.Color,

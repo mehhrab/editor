@@ -1,16 +1,16 @@
-package main
+package app
 
 import "core:fmt"
-import "path"
-import buf "buffer"
-import ed "editor"
-import fi "find"
-import co "commands"
-import fp "file_picker"
-import li "list"
-import km "keymap"
+import "../path"
+import buf "../buffer"
+import ed "../editor"
+import fi "../find"
+import co "../commands"
+import fp "../file_picker"
+import li "../list"
+import km "../keymap"
 
-Bindings :: struct {
+Keybinds :: struct {
 	go_left: km.Keybind,
 	go_right: km.Keybind,
 	go_up: km.Keybind,
@@ -48,7 +48,7 @@ Bindings :: struct {
 	remove_extra_cursors: km.Keybind,
 }
 
-bindings_default :: proc() -> Bindings {
+keybinds_default :: proc() -> Keybinds {
 	return {
 		go_left = km.keybind_init(.LEFT),
 		go_right = km.keybind_init(.RIGHT),

@@ -1,4 +1,4 @@
-package main
+package app
 
 import "core:fmt"
 import "core:strings"
@@ -6,22 +6,24 @@ import "core:mem"
 import "core:slice"
 import os "core:os/os2"
 import rl "vendor:raylib"
-import rg "range"
-import buf "buffer"
-import "path"
-import ed "editor"
-import fi "find"
-import co "commands"
-import fp "file_picker"
-import li "list"
-import km "keymap"
+import rg "../range"
+import buf "../buffer"
+import "../path"
+import ed "../editor"
+import fi "../find"
+import co "../commands"
+import fp "../file_picker"
+import li "../list"
+import km "../keymap"
 
 App :: struct {
+	current_dir: string,
+
 	theme: Theme,
 	style: Style,
 	font: rl.Font,
 	font_size: f32,
-	bindings: Bindings,
+	keybinds: Keybinds,
 	
 	editors: [dynamic]ed.Editor,
 	editor_index: int,
@@ -46,56 +48,26 @@ Style :: struct {
 	list: li.Style,
 }
 
-app_main :: proc() {
-	when ODIN_DEBUG {
-		track: mem.Tracking_Allocator
-		mem.tracking_allocator_init(&track, context.allocator)
-		context.allocator = mem.tracking_allocator(&track)
-
-		defer {
-			if len(track.allocation_map) > 0 {
-				fmt.eprintf("=== %v allocations not freed: ===\n", len(track.allocation_map))
-				for _, entry in track.allocation_map {
-					fmt.eprintf("- %v bytes @ %v\n", entry.size, entry.location)
-				}
-			}
-			mem.tracking_allocator_destroy(&track)
-		}
-	}
-
+// TODO: add more configuration options
+init :: proc(app: ^App, keybinds: Keybinds, theme: Theme) {
 	rl.SetConfigFlags({.WINDOW_RESIZABLE})
 	rl.InitWindow(1200, 700, "Editor")
-	defer rl.CloseWindow()
 	rl.SetTargetFPS(30)
 	rl.SetExitKey(nil)
 
 	current_dir, err := os.get_executable_directory(context.allocator)
 	assert(err == nil)
-	defer delete(current_dir)
+	app.current_dir = current_dir
 
-	app := App {}
-	app.theme = THEME_DEFAULT
+	app.theme = theme
 	app.font_size = 40
 	app.font = rl.LoadFontEx("FiraCode-Regular.ttf", i32(app.font_size * 2), nil, 0)
 	app.style = style_from_theme(&app.theme, app.font, app.font_size)
-	app.bindings = bindings_default()
-	defer delete(app.chars_pressed)
-	defer delete(app.cursors_before_search)
-
-	defer {
-		for &editor in app.editors {
-			ed.deinit(&editor)
-		}
-		delete(app.editors)
-	}
-
-	open_file(&app, path.join({ current_dir, "app.odin" }, context.temp_allocator))
+	app.keybinds = keybinds
 
 	fi.init(&app.find, &app.style.find)
-	defer fi.deinit(&app.find)
 
-	fp.init(&app.file_picker, &app.style.file_picker, current_dir)
-	defer fp.deinit(&app.file_picker)
+	fp.init(&app.file_picker, &app.style.file_picker, app.current_dir)
 
 	co.init(&app.commands, &app.style.commands, { 
 		"New File",
@@ -103,8 +75,27 @@ app_main :: proc() {
 		"Start Search",
 		"Close File",
 	})
-	defer co.deinit(&app.commands)
 
+	open_file(app, path.join({ app.current_dir, "app.odin" }, context.temp_allocator))
+}
+
+deinit :: proc(app: ^App) {
+	co.deinit(&app.commands)
+	fp.deinit(&app.file_picker)
+	fi.deinit(&app.find)
+
+	for &editor in app.editors {
+		ed.deinit(&editor)
+	}
+	delete(app.editors)
+
+	delete(app.chars_pressed)
+	delete(app.cursors_before_search)
+	delete(app.current_dir)
+	rl.CloseWindow()
+}
+
+run :: proc(app: ^App) {
 	for rl.WindowShouldClose() == false {
 		char := rl.GetCharPressed();
 		for char != 0 {
@@ -113,7 +104,7 @@ app_main :: proc() {
 		}
 
 		screen_rect := rl.Rectangle { 0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()) }
-		code_editor(&app).rect = { 0, 41, screen_rect.width, screen_rect.height - 40 }
+		code_editor(app).rect = { 0, 41, screen_rect.width, screen_rect.height - 40 }
 		app.find.input.rect = { 0, screen_rect.height - 40, screen_rect.width, 40 }
 		
 		file_picker_rect := rl.Rectangle { 0, 0, 700, 400 }
@@ -123,26 +114,26 @@ app_main :: proc() {
 
 		co.set_rect(&app.commands, { screen_rect.width / 2 - 600 / 2, 50, 600, 300 })
 
-		input(&app)
+		input(app)
 
 		if app.find.visible {
-			find_input(&app)
+			find_input(app)
 		}
 		else if app.file_picker.visible {
-			file_picker_input(&app)
+			file_picker_input(app)
 		}
 		else if app.commands.visible {
-			commands_input(&app)
+			commands_input(app)
 		}
 		else {
-			editor_input(&app, code_editor(&app))
+			editor_input(app, code_editor(app))
 		}
 
 		rl.BeginDrawing()
 		rl.ClearBackground(app.theme.bg2)
 		
-		draw_tabs(&app, { 0, 0, screen_rect.width, 40 })
-		ed.draw(code_editor(&app))
+		draw_tabs(app, { 0, 0, screen_rect.width, 40 })
+		ed.draw(code_editor(app))
 		
 		if app.commands.visible {
 			co.draw(&app.commands)
