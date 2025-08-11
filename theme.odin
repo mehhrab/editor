@@ -1,7 +1,7 @@
 package main
 
 import rl "vendor:raylib"
-import "syntax"
+import sy "syntax"
 
 Theme :: struct {
 	bg: rl.Color,
@@ -12,7 +12,7 @@ Theme :: struct {
 	selection: rl.Color,
 	accent: rl.Color,
 	seperator: rl.Color,
-	using syntax: syntax.Syntax,
+	using syntax: sy.Syntax,
 }
 
 THEME_DEFAULT :: Theme {

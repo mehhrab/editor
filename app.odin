@@ -1,12 +1,12 @@
 package main
 
-import rl "vendor:raylib"
-import fmt "core:fmt"
+import "core:fmt"
 import "core:strings"
 import "core:mem"
 import "core:slice"
 import os "core:os/os2"
-import "range"
+import rl "vendor:raylib"
+import rg "range"
 import buf "buffer"
 import "path"
 import ed "editor"
@@ -15,8 +15,6 @@ import co "commands"
 import fp "file_picker"
 import li "list"
 import km "keymap"
-
-Range :: range.Range
 
 App :: struct {
 	theme: Theme,

@@ -1,7 +1,7 @@
 package list
 
-import rl "vendor:raylib"
 import "core:strings"
+import rl "vendor:raylib"
 import buf "../buffer"
 import ed "../editor"
 
@@ -52,22 +52,8 @@ go_down :: proc(list: ^List) {
 	ed.go_down(&list.content)
 }
 
-// input :: proc(list: ^List) -> bool {
-// 	handled := false
-	
-// 	if rl.IsKeyDown(.LEFT_SHIFT) == false &&
-// 	(key_pressed_or_repeated(.DOWN) ||
-// 	key_pressed_or_repeated(.UP)) {
-// 		ed.input(&list.content)
-// 		handled = true
-// 	}
-
-// 	return handled
-// }
-
 draw :: proc(list: ^List) {
 	ed.draw(&list.content)
-	// rl.DrawRectangleLinesEx(list.rect, 1, list.app.theme.selection)
 }
 
 get_current_item :: proc(list: ^List, aloc := context.allocator) -> (int, string) {

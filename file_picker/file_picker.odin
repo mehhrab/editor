@@ -1,9 +1,9 @@
 package file_picker
 
-import rl "vendor:raylib"
-import os "core:os/os2"
 import "core:strings"
 import "core:fmt"
+import os "core:os/os2"
+import rl "vendor:raylib"
 import "../path"
 import li "../list"
 

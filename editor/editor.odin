@@ -1,16 +1,14 @@
 package editor
 
-import rl "vendor:raylib"
-import fmt "core:fmt"
+import "core:fmt"
 import "core:strings"
 import "core:slice"
 import "core:odin/tokenizer"
 import "core:math"
+import rl "vendor:raylib"
 import buf "../buffer"
-import "../range"
-import "../syntax"
-
-Range :: range.Range
+import rg "../range"
+import sy "../syntax"
 
 Editor :: struct {
 	// TODO: move these two outta here
@@ -24,9 +22,9 @@ Editor :: struct {
 	scroll_x: f32,
 	scroll_y: f32,
 
-	syntax: syntax.Syntax,
+	syntax: sy.Syntax,
 	lexer: tokenizer.Tokenizer,
-	highlighted_ranges: [dynamic]Range,
+	highlighted_ranges: [dynamic]rg.Range,
 	
 	highlight: bool,
 	hightlight_line: bool,
@@ -49,7 +47,7 @@ Cursor :: struct {
 Undo :: struct {
 	kind: Undo_Kind,
 	text: string,
-	change_range: Range,
+	change_range: rg.Range,
 	time: f32,
 	cursor: Cursor,
 	cursors_before: []Cursor,
@@ -102,7 +100,7 @@ add_cursor :: proc(editor: ^Editor, anchor, head: int) {
 	append(&editor.cursors, cursor)
 }
 
-select :: proc(editor: ^Editor, cursor: ^Cursor, range: Range) {
+select :: proc(editor: ^Editor, cursor: ^Cursor, range: rg.Range) {
 	goto(editor, cursor, range.start)
 	goto(editor, cursor, range.end, true)
 }
@@ -112,7 +110,7 @@ selected_text :: proc(editor: ^Editor, cursor: ^Cursor) -> string {
 	return string(editor.buffer.content[range.start:range.end])
 }
 
-all :: proc(editor: ^Editor) -> Range {
+all :: proc(editor: ^Editor) -> rg.Range {
 	return { 0, len(editor.buffer.content)}
 }
 
@@ -134,7 +132,7 @@ remove_extra_cursors :: proc(editor: ^Editor, loc := #caller_location) {
 	}
 }
 
-cursor_to_range :: proc(cursor: ^Cursor) -> Range {
+cursor_to_range :: proc(cursor: ^Cursor) -> rg.Range {
 	return {
 		min(cursor.head, cursor.anchor),
 		max(cursor.head, cursor.anchor),
@@ -167,7 +165,7 @@ clamp_in_line :: proc(editor: ^Editor, pos, line: int) -> int {
 	return clamp(pos, editor.buffer.line_ranges[line].start, editor.buffer.line_ranges[line].end)
 }
 
-insert :: proc(editor: ^Editor, cursor: ^Cursor, text: string, goto_end := true) -> Range {
+insert :: proc(editor: ^Editor, cursor: ^Cursor, text: string, goto_end := true) -> rg.Range {
 	cursors_before := slice.clone(editor.cursors[:], context.temp_allocator)
 	change_range := insert_raw(editor, cursor, text, goto_end)
 	cursors_after := slice.clone(editor.cursors[:], context.temp_allocator)
@@ -175,8 +173,8 @@ insert :: proc(editor: ^Editor, cursor: ^Cursor, text: string, goto_end := true)
 	return change_range
 }
 
-insert_raw :: proc(editor: ^Editor, cursor: ^Cursor, text: string, goto_end := true) -> Range {
-	change_range := Range { cursor.head, cursor.head + len(text) }
+insert_raw :: proc(editor: ^Editor, cursor: ^Cursor, text: string, goto_end := true) -> rg.Range {
+	change_range := rg.Range { cursor.head, cursor.head + len(text) }
 	
 	inject_at_elems(&editor.buffer.content, cursor.head, ..transmute([]byte)text)
 	buf.calc_line_ranges(&editor.buffer)
@@ -195,7 +193,7 @@ insert_raw :: proc(editor: ^Editor, cursor: ^Cursor, text: string, goto_end := t
 	return change_range
 }
 
-remove :: proc(editor: ^Editor, cursor: ^Cursor, goto_start := true) -> Range {
+remove :: proc(editor: ^Editor, cursor: ^Cursor, goto_start := true) -> rg.Range {
 	text := strings.clone(selected_text(editor, cursor), context.temp_allocator)
 	cursors_before := slice.clone(editor.cursors[:], context.temp_allocator)
 	change_range := remove_raw(editor, cursor, goto_start)
@@ -204,7 +202,7 @@ remove :: proc(editor: ^Editor, cursor: ^Cursor, goto_start := true) -> Range {
 	return change_range
 }
 
-remove_raw :: proc(editor: ^Editor, cursor: ^Cursor, goto_start := true) -> Range {
+remove_raw :: proc(editor: ^Editor, cursor: ^Cursor, goto_start := true) -> rg.Range {
 	change_range := cursor_to_range(cursor)
 
 	remove_range(&editor.buffer.content, change_range.start, change_range.end)
@@ -226,7 +224,7 @@ remove_raw :: proc(editor: ^Editor, cursor: ^Cursor, goto_start := true) -> Rang
 }
 
 // TODO: add cursor_replace_raw
-replace :: proc(editor: ^Editor, cursor: ^Cursor, text: string) -> (Range, Range) {
+replace :: proc(editor: ^Editor, cursor: ^Cursor, text: string) -> (rg.Range, rg.Range) {
 	removed_range := remove(editor, cursor)
 	inserted_range := insert(editor, cursor, text)
 	return removed_range, inserted_range
@@ -565,19 +563,19 @@ draw :: proc(editor: ^Editor) {
 	rl.EndScissorMode()
 }
 
-get_color_for_token :: proc(syntax: ^syntax.Syntax, kind: tokenizer.Token_Kind) -> rl.Color {
-	color := syntax.default
+get_color_for_token :: proc(syntax: ^sy.Syntax, kind: tokenizer.Token_Kind) -> rl.Color {
+	color := sy.default
 	if kind == .Ident {
-		color = syntax.symbol
+		color = sy.symbol
 	}
 	else if kind == .String {
-		color = syntax.sstring
+		color = sy.sstring
 	}
 	else if kind == .Comment {
-		color = syntax.comment
+		color = sy.comment
 	}
 	else if kind == .Float || kind == .Integer {
-		color = syntax.number
+		color = sy.number
 	}
 
 	return color
@@ -703,7 +701,7 @@ redo :: proc(editor: ^Editor) {
 push_undo :: proc(
 	editor: ^Editor, 
 	kind: Undo_Kind, 
-	range: Range, 
+	range: rg.Range, 
 	text: string,
 	cursors_before: []Cursor,
 	cursors_after: []Cursor,

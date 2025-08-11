@@ -1,9 +1,8 @@
 package main
 
 import "core:fmt"
-import "range"
-import buf "buffer"
 import "path"
+import buf "buffer"
 import ed "editor"
 import fi "find"
 import co "commands"

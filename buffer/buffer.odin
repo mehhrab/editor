@@ -1,16 +1,14 @@
 package buffer
 
-import rl "vendor:raylib"
-import fmt "core:fmt"
+import "core:fmt"
 import "core:strings"
 import "core:slice"
-import "../range"
-
-Range :: range.Range
+import rl "vendor:raylib"
+import rg "../range"
 
 Buffer :: struct {
 	content: [dynamic]byte,
-	line_ranges: [dynamic]Range,
+	line_ranges: [dynamic]rg.Range,
 }
 
 init :: proc(buffer: ^Buffer, text := "") {
@@ -26,7 +24,7 @@ deinit :: proc(buffer: ^Buffer) {
 
 calc_line_ranges :: proc(buffer: ^Buffer) {
 	clear(&buffer.line_ranges)
-	line_range := Range {}
+	line_range := rg.Range {}
 	for c, i in buffer.content {
 		if c == '\n' {
 			line_range.end = i
