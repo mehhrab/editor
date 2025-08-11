@@ -564,18 +564,18 @@ draw :: proc(editor: ^Editor) {
 }
 
 get_color_for_token :: proc(syntax: ^sy.Syntax, kind: tokenizer.Token_Kind) -> rl.Color {
-	color := sy.default
+	color := syntax.default
 	if kind == .Ident {
-		color = sy.symbol
+		color = syntax.symbol
 	}
 	else if kind == .String {
-		color = sy.sstring
+		color = syntax.sstring
 	}
 	else if kind == .Comment {
-		color = sy.comment
+		color = syntax.comment
 	}
 	else if kind == .Float || kind == .Integer {
-		color = sy.number
+		color = syntax.number
 	}
 
 	return color
