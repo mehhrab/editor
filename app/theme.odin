@@ -12,7 +12,6 @@ Theme :: struct {
 	selection: rl.Color,
 	accent: rl.Color,
 	seperator: rl.Color,
-	using syntax: sy.Syntax,
 }
 
 THEME_DEFAULT :: Theme {
@@ -24,11 +23,12 @@ THEME_DEFAULT :: Theme {
 	caret = rl.SKYBLUE,
 	accent = rl.ORANGE,
 	seperator = { 255, 255, 255, 20 },
-	syntax = {
-		default = rl.SKYBLUE,
-		symbol = rl.WHITE,
-		sstring = rl.GREEN,
-		comment = rl.DARKGREEN,
-		number = rl.PINK,
-	},
+}
+
+SYNTAX_DEFAULT :: sy.Syntax {
+	default = rl.SKYBLUE,
+	symbol = rl.WHITE,
+	sstring = rl.GREEN,
+	comment = rl.DARKGREEN,
+	number = rl.PINK,
 }

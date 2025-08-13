@@ -19,12 +19,16 @@ main :: proc() {
 		}
 	}
 
-	// TODO: add a config system
-	keybinds := app.keybinds_default()
-	theme := app.THEME_DEFAULT
-
 	state: app.App
-	app.init(&state, keybinds, theme)
+	// TODO: softcode this
+	config := app.Config {
+		font_path = "FiraCode-Regular.ttf",
+		font_size = 30,
+		keybinds = app.keybinds_default(),
+		theme = app.THEME_DEFAULT,
+		syntax = app.SYNTAX_DEFAULT,
+	}
+	app.init(&state, &config)
 	defer app.deinit(&state)
 	
 	app.run(&state)

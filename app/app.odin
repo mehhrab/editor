@@ -15,12 +15,13 @@ import co "../commands"
 import fp "../file_picker"
 import li "../list"
 import km "../keymap"
+import sy "../syntax"
 
 App :: struct {
 	current_dir: string,
 
-	theme: Theme,
 	style: Style,
+	syntax: sy.Syntax,
 	font: rl.Font,
 	font_size: f32,
 	keybinds: Keybinds,
@@ -40,7 +41,21 @@ App :: struct {
 	chars_pressed: [dynamic]rune,
 }
 
+Config :: struct {
+	syntax: sy.Syntax,
+	theme: Theme,
+	keybinds: Keybinds,
+	// TODO: use font name instead
+	font_path: string,
+	font_size: f32,
+}
+
 Style :: struct {
+	bg_color: rl.Color,
+	text_color: rl.Color,
+	text_color2: rl.Color,
+	tab_color: rl.Color,
+
 	editor: ed.Style,
 	find: fi.Style,
 	commands: co.Style,
@@ -48,8 +63,7 @@ Style :: struct {
 	list: li.Style,
 }
 
-// TODO: add more configuration options
-init :: proc(app: ^App, keybinds: Keybinds, theme: Theme) {
+init :: proc(app: ^App, config: ^Config) {
 	rl.SetConfigFlags({.WINDOW_RESIZABLE})
 	rl.InitWindow(1200, 700, "Editor")
 	rl.SetTargetFPS(30)
@@ -59,11 +73,12 @@ init :: proc(app: ^App, keybinds: Keybinds, theme: Theme) {
 	assert(err == nil)
 	app.current_dir = current_dir
 
-	app.theme = theme
 	app.font_size = 40
-	app.font = rl.LoadFontEx("FiraCode-Regular.ttf", i32(app.font_size * 2), nil, 0)
-	app.style = style_from_theme(&app.theme, app.font, app.font_size)
-	app.keybinds = keybinds
+	font_path := strings.clone_to_cstring(config.font_path, context.temp_allocator)
+	app.font = rl.LoadFontEx(font_path, i32(app.font_size * 2), nil, 0)	
+	app.syntax = config.syntax
+	app.style = style_from_theme(&config.theme, app.font, app.font_size)
+	app.keybinds = config.keybinds
 
 	fi.init(&app.find, &app.style.find)
 
@@ -130,7 +145,7 @@ run :: proc(app: ^App) {
 		}
 
 		rl.BeginDrawing()
-		rl.ClearBackground(app.theme.bg2)
+		rl.ClearBackground(app.style.bg_color)
 		
 		draw_tabs(app, { 0, 0, screen_rect.width, 40 })
 		ed.draw(code_editor(app))
@@ -184,7 +199,7 @@ open_file :: proc(app: ^App, file_path: string) -> int {
 	ed.init(editor, &app.style.editor, &buffer, file_path, file_name)
 	
 	ed.set_style(editor, app.style.editor)
-	editor.syntax = app.theme.syntax
+	editor.syntax = app.syntax
 	editor.highlight = true
 	editor.line_numbers = true
 
@@ -292,7 +307,12 @@ editor :: proc(app: ^App) -> ^ed.Editor {
 }
 
 style_from_theme :: proc(theme: ^Theme, font: rl.Font, font_size: f32) -> Style {
-	style := Style {}
+	style := Style {
+		bg_color = theme.bg2,
+		tab_color = theme.bg,
+		text_color = theme.text,
+		text_color2 = theme.text2,
+	}
 	style.editor = ed.Style {
 		bg_color = theme.bg,
 		caret_color = theme.caret,
@@ -333,21 +353,22 @@ draw_tabs :: proc(app: ^App, rect: rl.Rectangle) {
 	for editor, i in app.editors {
 		tab_w := rect.width / f32(len(app.editors))
 		tab_rect := rl.Rectangle { rect.x + f32(i) * tab_w, rect.y, tab_w, rect.height }
-		rl.DrawRectangleRec(tab_rect, i == app.editor_index ? app.theme.bg : app.theme.bg2)
+		tab_color := i == app.editor_index ? app.style.tab_color : app.style.bg_color
+		rl.DrawRectangleRec(tab_rect, tab_color)
 		if len(app.editors) != 0 && i == app.editor_index {
 			if i != 0 {
 				rl.DrawTriangle(
 					{ tab_rect.x, tab_rect.y + tab_rect.height },
 					{ tab_rect.x + 40, tab_rect.y },
 					{ tab_rect.x, tab_rect.y }, 
-					app.theme.bg2)
+					app.style.bg_color)
 			}
 			if i != len(app.editors) - 1 {					
 				rl.DrawTriangle(
 					{ tab_rect.x + tab_rect.width, tab_rect.y }, 
 					{ tab_rect.x + tab_rect.width - 40, tab_rect.y },
 					{ tab_rect.x + tab_rect.width, tab_rect.y + tab_rect.height },
-					app.theme.bg2)
+					app.style.bg_color)
 			}
 		}
 		rl.BeginScissorMode(i32(tab_rect.x + 40), i32(tab_rect.y), i32(tab_rect.width - 40 * 2), i32(tab_rect.height))
@@ -357,7 +378,8 @@ draw_tabs :: proc(app: ^App, rect: rl.Rectangle) {
 			tab_rect.x + tab_rect.width / 2 - text_size[0] / 2, 
 			tab_rect.y + tab_rect.height / 2 - text_size[1] / 2
 		}
-		rl.DrawTextEx(app.font, name_cstring, text_pos, 40, 0, i == app.editor_index ? app.theme.text : app.theme.text2)
+		text_color := i == app.editor_index ? app.style.text_color : app.style.text_color2
+		rl.DrawTextEx(app.font, name_cstring, text_pos, 40, 0, text_color)
 		rl.EndScissorMode()
 	}
 }
