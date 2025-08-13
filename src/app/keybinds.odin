@@ -136,28 +136,52 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 	content_changed := false
 
 	if km.check(&app.keybinds.go_up) {
-		ed.go_up(editor, false)
+		for &cursor in editor.cursors {
+			ed.go_up(editor, &cursor, false)
+		}
+		ed.merge_cursors(editor)
 	}
 	else if km.check(&app.keybinds.go_down) {
-		ed.go_down(editor, false)
+		for &cursor in editor.cursors {
+			ed.go_down(editor, &cursor, false)
+		}
+		ed.merge_cursors(editor)
 	}
 	else if km.check(&app.keybinds.go_left) {
-		ed.go_left(editor, false)
+		for &cursor in editor.cursors {
+			ed.go_left(editor, &cursor, false)
+		}
+		ed.merge_cursors(editor)
 	}
 	else if km.check(&app.keybinds.go_right) {
-		ed.go_right(editor, false)
+		for &cursor in editor.cursors {
+			ed.go_right(editor, &cursor, false)
+		}
+		ed.merge_cursors(editor)
 	}
 	else if km.check(&app.keybinds.go_up_select) {
-		ed.go_up(editor, true)
+		for &cursor in editor.cursors {
+			ed.go_up(editor, &cursor, true)
+		}
+		ed.merge_cursors(editor)
 	}
 	else if km.check(&app.keybinds.go_down_select) {
-		ed.go_down(editor, true)
+		for &cursor in editor.cursors {
+			ed.go_down(editor, &cursor, true)
+		}
+		ed.merge_cursors(editor)
 	}
 	else if km.check(&app.keybinds.go_left_select) {
-		ed.go_left(editor, true)
+		for &cursor in editor.cursors {
+			ed.go_left(editor, &cursor, true)
+		}
+		ed.merge_cursors(editor)
 	}
 	else if km.check(&app.keybinds.go_right_select) {
-		ed.go_right(editor, true)
+		for &cursor in editor.cursors {
+			ed.go_right(editor, &cursor, true)
+		}
+		ed.merge_cursors(editor)
 	}
 	else if key_pressed(.BACKSPACE) {
 		ed.back_space(editor)

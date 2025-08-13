@@ -45,11 +45,11 @@ add_items :: proc(list: ^List, items: []string) {
 }
 
 go_up :: proc(list: ^List) {
-	ed.go_up(&list.content)
+	ed.go_up(&list.content, &list.content.cursors[0])
 }
 
 go_down :: proc(list: ^List) {
-	ed.go_down(&list.content)
+	ed.go_down(&list.content, &list.content.cursors[0])
 }
 
 draw :: proc(list: ^List) {

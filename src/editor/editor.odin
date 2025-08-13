@@ -236,65 +236,53 @@ remove_all :: proc(editor: ^Editor) {
 	remove(editor, &editor.cursors[0])
 }
 
-go_right :: proc(editor: ^Editor, select := false) {
-	for &cursor in editor.cursors {
-		dest := 0
-		if has_selection(editor, &cursor) && select == false {
-			cursor_range := cursor_to_range(&cursor)
-			dest = cursor_range.end
-		}
-		else {
-			dest = cursor.head + 1
-		}
-		goto(editor, &cursor, dest, select)
+go_right :: proc(editor: ^Editor, cursor: ^Cursor, select := false) {
+	dest := 0
+	if has_selection(editor, cursor) && select == false {
+		cursor_range := cursor_to_range(cursor)
+		dest = cursor_range.end
 	}
-	merge_cursors(editor)
+	else {
+		dest = cursor.head + 1
+	}
+	goto(editor, cursor, dest, select)
 }
 
-go_left :: proc(editor: ^Editor, select := false) {
-	for &cursor in editor.cursors {
-		dest := 0
-		if has_selection(editor, &cursor) && select == false {
-			cursor_range := cursor_to_range(&cursor)
-			dest = cursor_range.start
-		}
-		else {
-			dest = cursor.head - 1
-		}
-		goto(editor, &cursor, dest, select)	
+go_left :: proc(editor: ^Editor, cursor: ^Cursor, select := false) {
+	dest := 0
+	if has_selection(editor, cursor) && select == false {
+		cursor_range := cursor_to_range(cursor)
+		dest = cursor_range.start
 	}
-	merge_cursors(editor)
+	else {
+		dest = cursor.head - 1
+	}
+	goto(editor, cursor, dest, select)	
 }
 
-go_up :: proc(editor: ^Editor, select := false) {
-	for &cursor in editor.cursors {
-		dest := 0
-		line := line_from_pos(editor, cursor.head)
-		if 0 < line {
-			dest = editor.buffer.line_ranges[line - 1].start
-			dest += col_visual_to_real(editor, line - 1, cursor.last_col)
-			dest = clamp_in_line(editor, dest, line - 1)
-		}
-		goto(editor, &cursor, dest, select, false)	
+go_up :: proc(editor: ^Editor, cursor: ^Cursor, select := false) {
+	dest := 0
+	line := line_from_pos(editor, cursor.head)
+	if 0 < line {
+		dest = editor.buffer.line_ranges[line - 1].start
+		dest += col_visual_to_real(editor, line - 1, cursor.last_col)
+		dest = clamp_in_line(editor, dest, line - 1)
 	}
-	merge_cursors(editor)
+	goto(editor, cursor, dest, select, false)	
 }
 
-go_down :: proc(editor: ^Editor, select := false) {
-	for &cursor in editor.cursors {		
-		dest := 0
-		line := line_from_pos(editor, cursor.head)
-		if len(editor.buffer.line_ranges) - 1 <= line {
-			dest = len(editor.buffer.content)
-		}
-		else {
-			dest = editor.buffer.line_ranges[line + 1].start
-			dest += col_visual_to_real(editor, line + 1, cursor.last_col)
-			dest = clamp_in_line(editor, dest, line + 1)
-		}
-		goto(editor, &cursor, dest, select, false)	
+go_down :: proc(editor: ^Editor, cursor: ^Cursor, select := false) {
+	dest := 0
+	line := line_from_pos(editor, cursor.head)
+	if len(editor.buffer.line_ranges) - 1 <= line {
+		dest = len(editor.buffer.content)
 	}
-	merge_cursors(editor)
+	else {
+		dest = editor.buffer.line_ranges[line + 1].start
+		dest += col_visual_to_real(editor, line + 1, cursor.last_col)
+		dest = clamp_in_line(editor, dest, line + 1)
+	}
+	goto(editor, cursor, dest, select, false)	
 }
 
 back_space :: proc(editor: ^Editor) {
@@ -734,21 +722,16 @@ set_style :: proc(editor: ^Editor, style: Style) {
 	editor.style = style
 }
 
-// TODO: rewrite this
+// TODO: rewrite this again
 merge_cursors :: proc(editor: ^Editor) {
 	to_remove := make([dynamic]int, context.temp_allocator)
-	#reverse for &cursor, i in editor.cursors {
-		#reverse for &other, j in editor.cursors {
-			if i != j && cursor == other {
-				if slice.contains(to_remove[:], j) == false {
-					append(&to_remove, j)
-				}
-			}
-			else if i != j {
+	for &cursor, i in editor.cursors {
+		for &other, j in editor.cursors {
+			if i != j {
 				cursor_range := cursor_to_range(&cursor)
 				other_range := cursor_to_range(&other)
 				if cursor_range.start <= other.head && other.head <= cursor_range.end {
-					if slice.contains(to_remove[:], j) == false {
+					if slice.contains(to_remove[:], j) == false && slice.contains(to_remove[:], i) == false {
 						cursor.anchor = other.anchor
 						append(&to_remove, j)
 					}
@@ -756,7 +739,7 @@ merge_cursors :: proc(editor: ^Editor) {
 			}
 		}
 	}
-	slice.sort(to_remove[:])
+
 	#reverse for i in to_remove {
 		if len(editor.cursors) == 1 {
 			break
