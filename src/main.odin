@@ -1,5 +1,6 @@
 package main
 
+import os "core:os/os2"
 import "app"
 
 main :: proc() {
@@ -22,18 +23,19 @@ main :: proc() {
 	state: app.App
 	// TODO: softcode this
 	config := app.Config {
-		font_path = "FiraCode-Regular.ttf",
+		font_path = "res\\FiraCode-Regular.ttf",
 		font_size = 30,
 		keybinds = app.keybinds_default(),
 		theme = app.THEME_DEFAULT,
 		syntax = app.SYNTAX_DEFAULT,
 	}
-	// TODO: softcode this
-	args := app.Args {
-		files_to_open = { "app\\app.odin", "app\\keybinds.odin" }
-	}
-	app.init(&state, &config, &args)
+
+	app.init(&state, &config)
 	defer app.deinit(&state)
 	
+	for i in 1..<len(os.args) {
+		app.open_file(&state, os.args[i])
+	}
+
 	app.run(&state)
 }

@@ -63,11 +63,7 @@ Style :: struct {
 	list: li.Style,
 }
 
-Args :: struct {
-	files_to_open: []string,
-}
-
-init :: proc(app: ^App, config: ^Config, args: ^Args) {
+init :: proc(app: ^App, config: ^Config) {
 	rl.SetConfigFlags({.WINDOW_RESIZABLE})
 	rl.InitWindow(1200, 700, "Editor")
 	rl.SetTargetFPS(30)
@@ -94,10 +90,6 @@ init :: proc(app: ^App, config: ^Config, args: ^Args) {
 		"Start Search",
 		"Close File",
 	})
-
-	for file in args.files_to_open {
-		open_file(app, file)
-	}
 }
 
 deinit :: proc(app: ^App) {
