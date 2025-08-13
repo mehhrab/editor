@@ -273,7 +273,7 @@ go_up :: proc(editor: ^Editor, select := false) {
 		if 0 < line {
 			dest = editor.buffer.line_ranges[line - 1].start
 			dest += col_visual_to_real(editor, line - 1, cursor.last_col)
-			dest = clamp_in_line(editor, dest, line - 1,)
+			dest = clamp_in_line(editor, dest, line - 1)
 		}
 		goto(editor, &cursor, dest, select, false)	
 	}

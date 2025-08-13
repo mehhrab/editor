@@ -99,7 +99,9 @@ input :: proc(app: ^App) {
 		file_picker_show(app)
 	}
 	else if km.check(&app.keybinds.next_tab) {
-		focus_editor(app, (app.editor_index + 1) % len(app.editors)) 
+		if len(app.editors) != 0 {
+			focus_editor(app, (app.editor_index + 1) % len(app.editors)) 
+		}
 	}
 	else if km.check(&app.keybinds.new_file) {
 		index := new_file(app)
@@ -110,7 +112,7 @@ input :: proc(app: ^App) {
 		// save_file(app, app.editor_index)
 	}
 	else if km.check(&app.keybinds.close_current_editor) {
-		if 1 < len(app.editors) {			
+		if 1 <= len(app.editors) {
 			ed.deinit(&app.editors[app.editor_index])
 			ordered_remove(&app.editors, app.editor_index)
 			focus_editor(app, len(app.editors) - 1)

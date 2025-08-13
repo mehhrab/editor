@@ -28,7 +28,11 @@ main :: proc() {
 		theme = app.THEME_DEFAULT,
 		syntax = app.SYNTAX_DEFAULT,
 	}
-	app.init(&state, &config)
+	// TODO: softcode this
+	args := app.Args {
+		files_to_open = { "app\\app.odin", "app\\keybinds.odin" }
+	}
+	app.init(&state, &config, &args)
 	defer app.deinit(&state)
 	
 	app.run(&state)

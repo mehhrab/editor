@@ -63,7 +63,11 @@ Style :: struct {
 	list: li.Style,
 }
 
-init :: proc(app: ^App, config: ^Config) {
+Args :: struct {
+	files_to_open: []string,
+}
+
+init :: proc(app: ^App, config: ^Config, args: ^Args) {
 	rl.SetConfigFlags({.WINDOW_RESIZABLE})
 	rl.InitWindow(1200, 700, "Editor")
 	rl.SetTargetFPS(30)
@@ -91,7 +95,9 @@ init :: proc(app: ^App, config: ^Config) {
 		"Close File",
 	})
 
-	open_file(app, path.join({ app.current_dir, "app", "app.odin" }, context.temp_allocator))
+	for file in args.files_to_open {
+		open_file(app, file)
+	}
 }
 
 deinit :: proc(app: ^App) {
@@ -119,7 +125,10 @@ run :: proc(app: ^App) {
 		}
 
 		screen_rect := rl.Rectangle { 0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()) }
-		code_editor(app).rect = { 0, 41, screen_rect.width, screen_rect.height - 40 }
+		
+		if len(app.editors) != 0 {			
+			code_editor(app).rect = { 0, 41, screen_rect.width, screen_rect.height - 40 }
+		}
 		app.find.input.rect = { 0, screen_rect.height - 40, screen_rect.width, 40 }
 		
 		file_picker_rect := rl.Rectangle { 0, 0, 700, 400 }
@@ -140,15 +149,26 @@ run :: proc(app: ^App) {
 		else if app.commands.visible {
 			commands_input(app)
 		}
-		else {
+		else if len(app.editors) != 0 {
 			editor_input(app, code_editor(app))
 		}
 
 		rl.BeginDrawing()
 		rl.ClearBackground(app.style.bg_color)
 		
-		draw_tabs(app, { 0, 0, screen_rect.width, 40 })
-		ed.draw(code_editor(app))
+		if len(app.editors) != 0 {
+			draw_tabs(app, { 0, 0, screen_rect.width, 40 })
+			ed.draw(code_editor(app))
+		}
+		else {
+			rl.DrawTextEx(
+				app.font, 
+				"no buffer is open\nuse CTRL + E to open file picker", 
+				{ 10, 10 }, 
+				app.font_size, 
+				0, 
+				app.style.text_color2)
+		}
 		
 		if app.commands.visible {
 			co.draw(&app.commands)
@@ -226,17 +246,19 @@ find_show :: proc(app: ^App) {
 		commands_hide(app)
 	}
 	
-	editor := editor(app)
-	
-	app.cursors_before_search = slice.clone(editor.cursors[:])
-	app.scroll_x_before_search = editor.scroll_x
-	app.scroll_y_before_search = editor.scroll_y
+	if any_editor_open(app) {
+		editor := editor(app)
+		
+		app.cursors_before_search = slice.clone(editor.cursors[:])
+		app.scroll_x_before_search = editor.scroll_x
+		app.scroll_y_before_search = editor.scroll_y
 
-	fi.set_text(&app.find, string(editor.buffer.content[:]))
-	fi.show(&app.find, ed.selected_text(editor, &editor.cursors[0]))
-	
-	clear(&editor.highlighted_ranges)
-	append(&editor.highlighted_ranges, ..fi.calc_matches(&app.find))
+		fi.set_text(&app.find, string(editor.buffer.content[:]))
+		fi.show(&app.find, ed.selected_text(editor, &editor.cursors[0]))
+		
+		clear(&editor.highlighted_ranges)
+		append(&editor.highlighted_ranges, ..fi.calc_matches(&app.find))
+	}
 }
 
 find_hide :: proc(app: ^App) {
@@ -382,4 +404,8 @@ draw_tabs :: proc(app: ^App, rect: rl.Rectangle) {
 		rl.DrawTextEx(app.font, name_cstring, text_pos, 40, 0, text_color)
 		rl.EndScissorMode()
 	}
+}
+
+any_editor_open :: proc(app: ^App) -> bool {
+	return len(app.editors) != 0 || app.file_picker.visible 
 }
