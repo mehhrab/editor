@@ -83,7 +83,7 @@ go_down :: proc(commands: ^Commands) {
 
 replace :: proc(commands: ^Commands, text: string) {
 	refresh(commands)
-	ed.replace(&commands.input, &commands.input.cursors[0], text)	
+	ed.insert(&commands.input, &commands.input.cursors[0], text)	
 }
 
 refresh :: proc(commands: ^Commands) {

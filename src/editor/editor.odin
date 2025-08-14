@@ -165,32 +165,38 @@ clamp_in_line :: proc(editor: ^Editor, pos, line: int) -> int {
 	return clamp(pos, editor.buffer.line_ranges[line].start, editor.buffer.line_ranges[line].end)
 }
 
-insert :: proc(editor: ^Editor, cursor: ^Cursor, text: string, goto_end := true) -> rg.Range {
+insert :: proc(editor: ^Editor, cursor: ^Cursor, text: string, goto_end := true) -> (rg.Range, rg.Range) {
+	deleted_text := strings.clone(selected_text(editor, cursor), context.temp_allocator)
+
 	cursors_before := slice.clone(editor.cursors[:], context.temp_allocator)
-	change_range := insert_raw(editor, cursor, text, goto_end)
+	deleted_range, inserted_range := insert_raw(editor, cursor, text, goto_end)
 	cursors_after := slice.clone(editor.cursors[:], context.temp_allocator)
-	push_undo(editor, .Insert, change_range, text, cursors_before, cursors_after)
-	return change_range
+
+	push_undo(editor, .Delete, deleted_range, deleted_text, cursors_before, cursors_after)
+	push_undo(editor, .Insert, inserted_range, text, cursors_before, cursors_after)
+
+	return deleted_range, inserted_range
 }
 
-insert_raw :: proc(editor: ^Editor, cursor: ^Cursor, text: string, goto_end := true) -> rg.Range {
-	change_range := rg.Range { cursor.head, cursor.head + len(text) }
+insert_raw :: proc(editor: ^Editor, cursor: ^Cursor, text: string, goto_end := true) -> (rg.Range, rg.Range) {
+	cursor_range := cursor_to_range(cursor)
+
+	buf.replace(&editor.buffer, cursor_range, text)
 	
-	inject_at_elems(&editor.buffer.content, cursor.head, ..transmute([]byte)text)
-	buf.calc_line_ranges(&editor.buffer)
-	
+	// adjust cursors
+	change_length := len(text) - rg.length(cursor_range)
 	for &other in editor.cursors {
 		if cursor.head < other.head {
-			other.anchor += len(text)
-			other.head += len(text)
+			other.anchor += change_length
+			other.head += change_length
 		}
 	}
 
 	if goto_end {
-		goto(editor, cursor, cursor.head + len(text))
+		goto(editor, cursor, cursor_range.start + len(text))
 	}
 
-	return change_range
+	return cursor_range, { cursor_range.start, cursor_range.start + len(text) }
 }
 
 remove :: proc(editor: ^Editor, cursor: ^Cursor, goto_start := true) -> rg.Range {
@@ -204,15 +210,15 @@ remove :: proc(editor: ^Editor, cursor: ^Cursor, goto_start := true) -> rg.Range
 
 remove_raw :: proc(editor: ^Editor, cursor: ^Cursor, goto_start := true) -> rg.Range {
 	change_range := cursor_to_range(cursor)
+	change_length := rg.length(change_range)
 
-	remove_range(&editor.buffer.content, change_range.start, change_range.end)
-	buf.calc_line_ranges(&editor.buffer)
+	buf.remove(&editor.buffer, change_range)
 
+	// adjust cursors
 	for &other in editor.cursors {
 		if cursor.head < other.head {
-			diff := change_range.end - change_range.start
-			other.head -= diff
-			other.anchor -= diff
+			other.head -= change_length
+			other.anchor -= change_length
 		}
 	}
 
@@ -221,13 +227,6 @@ remove_raw :: proc(editor: ^Editor, cursor: ^Cursor, goto_start := true) -> rg.R
 	}
 
 	return change_range
-}
-
-// TODO: add cursor_replace_raw
-replace :: proc(editor: ^Editor, cursor: ^Cursor, text: string) -> (rg.Range, rg.Range) {
-	removed_range := remove(editor, cursor)
-	inserted_range := insert(editor, cursor, text)
-	return removed_range, inserted_range
 }
 
 remove_all :: proc(editor: ^Editor) {

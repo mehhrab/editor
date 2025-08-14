@@ -36,6 +36,24 @@ calc_line_ranges :: proc(buffer: ^Buffer) {
 	append(&buffer.line_ranges, line_range)
 }
 
+insert :: proc(buffer: ^Buffer, pos: int, text: string)  {
+	replace(buffer, rg.point(pos), text)
+}
+
+remove :: proc(buffer: ^Buffer, range: rg.Range) {
+	replace(buffer, range, "")
+}
+
+replace :: proc(buffer: ^Buffer, range: rg.Range, text: string) {
+	if 1 <= rg.length(range) {
+		remove_range(&buffer.content, range.start, range.end)
+	}
+	if text != "" {
+		inject_at_elems(&buffer.content, range.start, ..transmute([]byte)text)
+	}
+	calc_line_ranges(buffer)
+}
+
 content_with_clrf :: proc(buffer: ^Buffer, allocator := context.allocator) -> []byte {
 	content, _ := strings.replace_all(string(buffer.content[:]), "\n", "\r\n", context.temp_allocator)
 	return transmute([]byte)strings.clone(content, allocator)

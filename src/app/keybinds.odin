@@ -189,14 +189,14 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 	}
 	else if key_pressed(.ENTER) {
 		for &cursor in editor.cursors {
-			ed.replace(editor, &cursor, "\n")
+			ed.insert(editor, &cursor, "\n")
 		}
 		content_changed = true
 	}
 	else if key_pressed(.TAB) {
 		// TODO: add option to use spaces
 		for &cursor in editor.cursors {
-			ed.replace(editor, &cursor, "\t")
+			ed.insert(editor, &cursor, "\t")
 		}
 		content_changed = true
 	}
@@ -261,7 +261,7 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 	else if len(app.chars_pressed) != 0 {
 		for char in app.chars_pressed {
 			for &cursor in editor.cursors {
-				ed.replace(editor, &cursor, fmt.tprint(char))
+				ed.insert(editor, &cursor, fmt.tprint(char))
 			}
 		}
 		content_changed = true
