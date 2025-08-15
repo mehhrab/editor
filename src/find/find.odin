@@ -17,6 +17,7 @@ Find :: struct {
 	
 	font: rl.Font,
 	font_size: f32,
+	rect: rl.Rectangle,
 	style: Style,
 	visible: bool,
 }
@@ -118,4 +119,9 @@ set_font :: proc(find: ^Find, font: rl.Font, font_size: f32) {
 	find.font = font
 	find.font_size = font_size
 	ed.set_font(&find.input, font, font_size)
+}
+
+set_rect :: proc(find: ^Find, rect: rl.Rectangle) {
+	find.rect = rect
+	ed.set_rect(&find.input, rect)
 }

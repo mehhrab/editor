@@ -8,6 +8,7 @@ import buf "../buffer"
 import ed "../editor"
 import li "../list"
 import rg "../range"
+import rec "../rectangle"
 
 Commands :: struct {
 	input: ed.Editor,
@@ -143,12 +144,8 @@ draw :: proc(commands: ^Commands) {
 
 set_rect :: proc(commands: ^Commands, rect: rl.Rectangle) {
 	commands.rect = rect
-	commands.input.rect = rect
-	commands.input.rect.height = commands.font_size
-
-	list_rect := rect
-	list_rect.y += commands.font_size
-	list_rect.height -= commands.font_size
+	input_rect, list_rect := rec.cut_top(commands.rect, commands.font_size)
+	ed.set_rect(&commands.input, input_rect)
 	li.set_rect(&commands.list, list_rect)	
 }
 

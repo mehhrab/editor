@@ -751,3 +751,7 @@ set_font :: proc(editor: ^Editor, font: rl.Font, font_size: f32) {
 	editor.font = font
 	editor.font_size = font_size
 }
+
+set_rect :: proc(editor: ^Editor, rect: rl.Rectangle) {
+	editor.rect = rect
+}

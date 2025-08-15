@@ -418,10 +418,11 @@ layout :: proc(app: ^App) {
 	tabs_rect, editor_rect := rec.cut_top(screen_rect, app.font_size)
 	app.tabs_rect = tabs_rect
 	if len(app.editors) != 0 {
-		code_editor(app).rect = editor_rect
+		ed.set_rect(code_editor(app), editor_rect)
 	}
 
-	app.find.input.rect, _ = rec.cut_bottom(screen_rect, app.font_size)
-	fp.set_rect(&app.file_picker, rec.center_in_area({ 0, 0, 700, 400 }, screen_rect))
-	co.set_rect(&app.commands, rec.center_in_area({ 0, 0, 700, 300 }, screen_rect))
+	find_rect, _ := rec.cut_bottom(screen_rect, app.font_size)
+	fi.set_rect(&app.find, find_rect)
+	fp.set_rect(&app.file_picker, rec.center_in_area({ 0, 0, screen_rect.width / 2, screen_rect.height / 2 }, screen_rect))
+	co.set_rect(&app.commands, rec.center_in_area({ 0, 0, screen_rect.width / 2, screen_rect.height / 3 }, screen_rect))
 }

@@ -78,7 +78,7 @@ clear :: proc(list: ^List) {
 
 set_rect :: proc(list: ^List, rect: rl.Rectangle) {
 	list.rect = rect
-	list.content.rect = rect
+	ed.set_rect(&list.content, rect)
 }
 
 set_style :: proc(list: ^List, style: Style) {
