@@ -24,7 +24,7 @@ main :: proc() {
 	// TODO: softcode this
 	config := app.Config {
 		font_path = "res\\FiraCode-Regular.ttf",
-		font_size = 20,
+		font_size = 40,
 		keybinds = app.keybinds_default(),
 		theme = app.THEME_DEFAULT,
 		syntax = app.SYNTAX_DEFAULT,
