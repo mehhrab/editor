@@ -16,6 +16,7 @@ import fp "../file_picker"
 import li "../list"
 import km "../keymap"
 import sy "../syntax"
+import rec "../rectangle"
 
 App :: struct {
 	current_dir: string,
@@ -39,6 +40,7 @@ App :: struct {
 	file_picker: fp.File_Picker,
 	commands: co.Commands, 
 	
+	tabs_rect: rl.Rectangle,
 	chars_pressed: [dynamic]rune,
 }
 
@@ -112,20 +114,7 @@ run :: proc(app: ^App) {
 			char = rl.GetCharPressed();
 		}
 
-		screen_rect := rl.Rectangle { 0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()) }
-		
-		if len(app.editors) != 0 {			
-			code_editor(app).rect = { 0, app.font_size + 1, screen_rect.width, screen_rect.height - app.font_size }
-		}
-		app.find.input.rect = { 0, screen_rect.height - app.font_size, screen_rect.width, app.font_size }
-		
-		file_picker_rect := rl.Rectangle { 0, 0, 700, 400 }
-		file_picker_rect.x = screen_rect.width / 2 - file_picker_rect.width / 2
-		file_picker_rect.y = screen_rect.height / 2 - file_picker_rect.height / 2
-		fp.set_rect(&app.file_picker, file_picker_rect)
-
-		co.set_rect(&app.commands, { screen_rect.width / 2 - 600 / 2, 50, 600, 300 })
-
+		layout(app)
 		input(app)
 
 		if app.find.visible {
@@ -145,7 +134,7 @@ run :: proc(app: ^App) {
 		rl.ClearBackground(app.style.bg_color)
 		
 		if len(app.editors) != 0 {
-			draw_tabs(app, { 0, 0, screen_rect.width, app.font_size })
+			draw_tabs(app, app.tabs_rect)
 			ed.draw(code_editor(app))
 		}
 		else {
@@ -421,4 +410,18 @@ set_font :: proc(app: ^App, font: rl.Font, font_size: f32) {
 load_font :: proc(path: string, font_size: f32) -> rl.Font {
 	font_path := strings.clone_to_cstring(path, context.temp_allocator)
 	return rl.LoadFontEx(font_path, i32(font_size * 2), nil, 0)
+}
+
+layout :: proc(app: ^App) {
+	screen_rect := rl.Rectangle { 0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()) }
+
+	tabs_rect, editor_rect := rec.cut_top(screen_rect, app.font_size)
+	app.tabs_rect = tabs_rect
+	if len(app.editors) != 0 {
+		code_editor(app).rect = editor_rect
+	}
+
+	app.find.input.rect, _ = rec.cut_bottom(screen_rect, app.font_size)
+	fp.set_rect(&app.file_picker, rec.center_in_area({ 0, 0, 700, 400 }, screen_rect))
+	co.set_rect(&app.commands, rec.center_in_area({ 0, 0, 700, 300 }, screen_rect))
 }
