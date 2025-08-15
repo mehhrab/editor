@@ -239,6 +239,17 @@ find_show :: proc(app: ^App) {
 	}
 }
 
+find_refresh :: proc(app: ^App) {
+	clear(&editor(app).highlighted_ranges)
+	ed.remove_extra_cursors(editor(app))
+	
+	matches := fi.calc_matches(&app.find)
+	append(&editor(app).highlighted_ranges, ..matches)
+	
+	_, match_range := fi.next(&app.find)
+	ed.select(editor(app), &editor(app).cursors[0], match_range)
+}
+
 find_hide :: proc(app: ^App) {
 	clear(&editor(app).highlighted_ranges)
 	fi.hide(&app.find)

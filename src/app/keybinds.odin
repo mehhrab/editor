@@ -288,7 +288,7 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 
 find_input :: proc(app: ^App) {
 	if km.check(&app.keybinds.find_confirm) {
-		fi.hide(&app.find)
+		find_hide(app)
 	}
 	else if km.check(&app.keybinds.find_next) {
 		find_next(app)
@@ -296,10 +296,7 @@ find_input :: proc(app: ^App) {
 	else {
 		content_changed := editor_input(app, &app.find.input)
 		if content_changed {
-			fi.calc_matches(&app.find)
-			_, match_range := fi.next(&app.find)
-			ed.remove_extra_cursors(editor(app))
-			ed.select(editor(app), &editor(app).cursors[0], match_range)
+			find_refresh(app)
 		}
 	}
 }
