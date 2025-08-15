@@ -23,6 +23,7 @@ App :: struct {
 	style: Style,
 	syntax: sy.Syntax,
 	font: rl.Font,
+	font_path: string,
 	font_size: f32,
 	keybinds: Keybinds,
 	
@@ -73,17 +74,10 @@ init :: proc(app: ^App, config: ^Config) {
 	assert(err == nil)
 	app.current_dir = current_dir
 
-	app.font_size = 40
-	font_path := strings.clone_to_cstring(config.font_path, context.temp_allocator)
-	app.font = rl.LoadFontEx(font_path, i32(app.font_size * 2), nil, 0)	
-	app.syntax = config.syntax
-	app.style = style_from_theme(&config.theme, app.font, app.font_size)
-	app.keybinds = config.keybinds
+	load_config(app, config)
 
 	fi.init(&app.find, &app.style.find)
-
 	fp.init(&app.file_picker, &app.style.file_picker, app.current_dir)
-
 	co.init(&app.commands, &app.style.commands, { 
 		"New File",
 		"Open File",
@@ -105,6 +99,8 @@ deinit :: proc(app: ^App) {
 	delete(app.chars_pressed)
 	delete(app.cursors_before_search)
 	delete(app.current_dir)
+	delete(app.font_path)
+	rl.UnloadFont(app.font)
 	rl.CloseWindow()
 }
 
@@ -119,9 +115,9 @@ run :: proc(app: ^App) {
 		screen_rect := rl.Rectangle { 0, 0, f32(rl.GetScreenWidth()), f32(rl.GetScreenHeight()) }
 		
 		if len(app.editors) != 0 {			
-			code_editor(app).rect = { 0, 41, screen_rect.width, screen_rect.height - 40 }
+			code_editor(app).rect = { 0, app.font_size + 1, screen_rect.width, screen_rect.height - app.font_size }
 		}
-		app.find.input.rect = { 0, screen_rect.height - 40, screen_rect.width, 40 }
+		app.find.input.rect = { 0, screen_rect.height - app.font_size, screen_rect.width, app.font_size }
 		
 		file_picker_rect := rl.Rectangle { 0, 0, 700, 400 }
 		file_picker_rect.x = screen_rect.width / 2 - file_picker_rect.width / 2
@@ -149,7 +145,7 @@ run :: proc(app: ^App) {
 		rl.ClearBackground(app.style.bg_color)
 		
 		if len(app.editors) != 0 {
-			draw_tabs(app, { 0, 0, screen_rect.width, 40 })
+			draw_tabs(app, { 0, 0, screen_rect.width, app.font_size })
 			ed.draw(code_editor(app))
 		}
 		else {
@@ -186,6 +182,7 @@ new_file :: proc(app: ^App, content := "") -> int {
 
 	buffer: buf.Buffer; buf.init(&buffer, content)
 	ed.init(editor, &app.style.editor, &buffer, "", "*untitled*")
+	ed.set_font(editor, app.font, app.font_size)
 	editor.highlight = true
 	editor.line_numbers = true
 	
@@ -210,7 +207,7 @@ open_file :: proc(app: ^App, file_path: string) -> int {
 	buffer: buf.Buffer; buf.init(&buffer, string(text))
 	ed.init(editor, &app.style.editor, &buffer, file_path, file_name)
 	
-	ed.set_style(editor, app.style.editor)
+	ed.set_font(editor, app.font, app.font_size)
 	editor.syntax = app.syntax
 	editor.highlight = true
 	editor.line_numbers = true
@@ -320,7 +317,18 @@ editor :: proc(app: ^App) -> ^ed.Editor {
 	return current_editor	
 }
 
-style_from_theme :: proc(theme: ^Theme, font: rl.Font, font_size: f32) -> Style {
+load_config :: proc(app: ^App, config: ^Config) {
+	app.font_path = strings.clone(config.font_path)
+	app.font_size = config.font_size
+	app.font = load_font(app.font_path, app.font_size)	
+	set_font(app, app.font, app.font_size)
+
+	app.syntax = config.syntax
+	app.style = style_from_theme(&config.theme)
+	app.keybinds = config.keybinds
+}
+
+style_from_theme :: proc(theme: ^Theme) -> Style {
 	style := Style {
 		bg_color = theme.bg2,
 		tab_color = theme.bg,
@@ -330,8 +338,6 @@ style_from_theme :: proc(theme: ^Theme, font: rl.Font, font_size: f32) -> Style 
 	style.editor = ed.Style {
 		bg_color = theme.bg,
 		caret_color = theme.caret,
-		font = font,
-		font_size = font_size,
 		highlight_color = rl.ColorAlpha(theme.selection, 0.5),
 		select_color = theme.selection,
 		text_color = theme.text,
@@ -373,31 +379,46 @@ draw_tabs :: proc(app: ^App, rect: rl.Rectangle) {
 			if i != 0 {
 				rl.DrawTriangle(
 					{ tab_rect.x, tab_rect.y + tab_rect.height },
-					{ tab_rect.x + 40, tab_rect.y },
+					{ tab_rect.x + app.font_size, tab_rect.y },
 					{ tab_rect.x, tab_rect.y }, 
 					app.style.bg_color)
 			}
-			if i != len(app.editors) - 1 {					
+			if i != len(app.editors) - 1 {
 				rl.DrawTriangle(
 					{ tab_rect.x + tab_rect.width, tab_rect.y }, 
-					{ tab_rect.x + tab_rect.width - 40, tab_rect.y },
+					{ tab_rect.x + tab_rect.width - app.font_size, tab_rect.y },
 					{ tab_rect.x + tab_rect.width, tab_rect.y + tab_rect.height },
 					app.style.bg_color)
 			}
 		}
-		rl.BeginScissorMode(i32(tab_rect.x + 40), i32(tab_rect.y), i32(tab_rect.width - 40 * 2), i32(tab_rect.height))
-		name_cstring := strings.clone_to_cstring(editor.name, context.temp_allocator)			
-		text_size := rl.MeasureTextEx(app.font, name_cstring, 40, 0)
+		rl.BeginScissorMode(i32(tab_rect.x + app.font_size), i32(tab_rect.y), i32(tab_rect.width - app.font_size * 2), i32(tab_rect.height))
+		name_cstring := strings.clone_to_cstring(editor.name, context.temp_allocator)
+		text_size := rl.MeasureTextEx(app.font, name_cstring, app.font_size, 0)
 		text_pos := rl.Vector2 { 
 			tab_rect.x + tab_rect.width / 2 - text_size[0] / 2, 
 			tab_rect.y + tab_rect.height / 2 - text_size[1] / 2
 		}
 		text_color := i == app.editor_index ? app.style.text_color : app.style.text_color2
-		rl.DrawTextEx(app.font, name_cstring, text_pos, 40, 0, text_color)
+		rl.DrawTextEx(app.font, name_cstring, text_pos, app.font_size, 0, text_color)
 		rl.EndScissorMode()
 	}
 }
 
 any_editor_open :: proc(app: ^App) -> bool {
 	return len(app.editors) != 0 || app.file_picker.visible 
+}
+
+set_font :: proc(app: ^App, font: rl.Font, font_size: f32) {
+	fi.set_font(&app.find, font, font_size)
+	fp.set_font(&app.file_picker, font, font_size)
+	co.set_font(&app.commands, font, font_size)
+
+	for &editor in app.editors {
+		ed.set_font(&editor, font, font_size)
+	}
+}
+
+load_font :: proc(path: string, font_size: f32) -> rl.Font {
+	font_path := strings.clone_to_cstring(path, context.temp_allocator)
+	return rl.LoadFontEx(font_path, i32(font_size * 2), nil, 0)
 }

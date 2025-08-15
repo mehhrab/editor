@@ -11,6 +11,8 @@ File_Picker :: struct {
 	list: li.List,
 	dir: string,
 
+	font: rl.Font,
+	font_size: f32,
 	style: Style,
 	visible: bool,
 }
@@ -91,7 +93,7 @@ go_down :: proc(file_picker: ^File_Picker) {
 }
 
 draw :: proc(file_picker: ^File_Picker) {
-	padding := f32(20)
+	padding := file_picker.font_size / 2
 	expanded_rect := file_picker.list.rect
 	expanded_rect.x -= padding
 	expanded_rect.y -= padding
@@ -99,8 +101,8 @@ draw :: proc(file_picker: ^File_Picker) {
 	expanded_rect.height += padding * 2
 
 	shadow_rect := expanded_rect
-	shadow_rect.x += 20
-	shadow_rect.y += 20
+	shadow_rect.x += padding
+	shadow_rect.y += padding
 	rl.DrawRectangleRec(shadow_rect, { 0, 0, 0, 255 })
 
 	bg_color := file_picker.style.list.content.bg_color
@@ -156,4 +158,10 @@ set_dir :: proc(file_picker: ^File_Picker, dir: string) {
 set_style :: proc(file_picker: ^File_Picker, style: Style) {
 	file_picker.style = style
 	li.set_style(&file_picker.list, style.list)
+}
+
+set_font :: proc(file_picker: ^File_Picker, font: rl.Font, font_size: f32) {
+	file_picker.font = font
+	file_picker.font_size = font_size
+	li.set_font(&file_picker.list, font, font_size)
 }

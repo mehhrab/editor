@@ -8,6 +8,8 @@ import ed "../editor"
 List :: struct {
 	content: ed.Editor,
 
+	font: rl.Font,
+	font_size: f32,
 	style: Style,
 	rect: rl.Rectangle,
 }
@@ -82,4 +84,10 @@ set_rect :: proc(list: ^List, rect: rl.Rectangle) {
 set_style :: proc(list: ^List, style: Style) {
 	list.style = style
 	ed.set_style(&list.content, style.content)
+}
+
+set_font :: proc(list: ^List, font: rl.Font, font_size: f32) {
+	list.font = font
+	list.font_size = font_size
+	ed.set_font(&list.content, font, font_size)
 }

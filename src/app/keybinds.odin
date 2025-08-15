@@ -43,6 +43,9 @@ Keybinds :: struct {
 	close_current_editor: km.Keybind,
 	confirm: km.Keybind,
 
+	zoom_in: km.Keybind,
+	zoom_out: km.Keybind,
+
 	add_cursor_above: km.Keybind,
 	add_cursor_below: km.Keybind,
 	remove_extra_cursors: km.Keybind,
@@ -81,6 +84,9 @@ keybinds_default :: proc() -> Keybinds {
 		save_file = km.keybind_init(.S, control = true),
 		close_current_editor = km.keybind_init(.W, control = true),
 		confirm = km.keybind_init(.ENTER),
+
+		zoom_in = km.keybind_init(.EQUAL, control = true),
+		zoom_out = km.keybind_init(.MINUS, control = true),
 
 		add_cursor_above = km.keybind_init(.UP, alt = true, control = true),
 		add_cursor_below = km.keybind_init(.DOWN, alt = true, control = true),
@@ -128,6 +134,16 @@ input :: proc(app: ^App) {
 		else if app.commands.visible {
 			commands_hide(app)
 		}
+	}
+	else if km.check(&app.keybinds.zoom_in) {
+		app.font_size += 2
+		app.font = load_font(app.font_path, app.font_size)
+		set_font(app, app.font, app.font_size)
+	}
+	else if km.check(&app.keybinds.zoom_out) {
+		app.font_size -= 2
+		app.font = load_font(app.font_path, app.font_size)
+		set_font(app, app.font, app.font_size)
 	}
 }
 

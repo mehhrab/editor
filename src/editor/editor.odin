@@ -33,6 +33,8 @@ Editor :: struct {
 	undos: [dynamic]Undo,
 	undo_index: int,
 
+	font: rl.Font,
+	font_size: f32,
 	style: Style,
 	rect: rl.Rectangle,
 	active: bool,
@@ -60,8 +62,6 @@ Undo_Kind :: enum {
 }
 
 Style :: struct {
-	font: rl.Font,
-	font_size: f32,
 	text_color: rl.Color,
 	text_color2: rl.Color,
 	bg_color: rl.Color,
@@ -360,12 +360,12 @@ draw :: proc(editor: ^Editor) {
 	scroll_x := &editor.scroll_x
 	scroll_y := &editor.scroll_y
 
-	pad := f32(20)
+	pad := editor.font_size
 	
 	lines_rect := rl.Rectangle {
 		editor.rect.x,
 		editor.rect.y,
-		editor.line_numbers ? 100 : 0,
+		editor.line_numbers ? editor.font_size * 3 : 0,
 		editor.rect.height,
 	}
 	code_rect := rl.Rectangle {
@@ -387,9 +387,9 @@ draw :: proc(editor: ^Editor) {
 	for i in buffer.line_ranges[current_line].start..<editor.cursors[0].head {
 		char := buffer.content[i]
 		char_cstring := fmt.ctprint(rune(char))
-		char_w := rl.MeasureTextEx(style.font, char_cstring, 40, 0)[0]
+		char_w := rl.MeasureTextEx(editor.font, char_cstring, editor.font_size, 0)[0]
 		if char == '\t' {
-			char_w = rl.MeasureTextEx(style.font, "    ", 40, 0)[0]
+			char_w = rl.MeasureTextEx(editor.font, "    ", editor.font_size, 0)[0]
 		}
 		cursor_x += char_w
 	}
@@ -402,7 +402,7 @@ draw :: proc(editor: ^Editor) {
 	}
 
 	// calculate scroll_y
-	current_line_y := f32(current_line * 40)
+	current_line_y := f32(current_line) * editor.font_size
 	if code_rect.height - scroll_y^ < current_line_y + look_ahead_y {
 		scroll_y^ = -(current_line_y - code_rect.height + look_ahead_y)
 	}
@@ -422,8 +422,8 @@ draw :: proc(editor: ^Editor) {
 	}
 
 	// calculate visible lines
-	first_line := int(math.floor(-(scroll_y^) / 40))
-	last_line := int(math.ceil((code_rect.height - (scroll_y^)) / 40))
+	first_line := int(math.floor(-(scroll_y^) / editor.font_size))
+	last_line := int(math.ceil((code_rect.height - (scroll_y^)) / editor.font_size))
 	// HACK: for single line editors
 	if len(buffer.line_ranges) == 1 {
 		last_line = 0
@@ -443,16 +443,16 @@ draw :: proc(editor: ^Editor) {
 	if editor.hightlight_line {		
 		highlight := rl.Rectangle {
 			editor.rect.x,
-			editor.rect.y + f32(current_line) * 40 + scroll_y^,
+			editor.rect.y + f32(current_line) * editor.font_size + scroll_y^,
 			editor.rect.width,
-			40
+			editor.font_size
 		}
 		rl.DrawRectangleRec(highlight, style.highlight_color)
 	}
 	
 	start_x := code_rect.x + scroll_x^ 
 	char_x := start_x
-	char_y := f32(40 * first_line) + code_rect.y + scroll_y^
+	char_y := editor.font_size * f32(first_line) + code_rect.y + scroll_y^
 	line := first_line
 	token_index := 0
 	for char, i in buffer.content[first_line_range.start:last_line_range.end] {		
@@ -470,34 +470,34 @@ draw :: proc(editor: ^Editor) {
 		}
 
 		char_cstring := fmt.ctprint(rune(char))
-		char_w := rl.MeasureTextEx(style.font, char_cstring, 40, 0)[0]
+		char_w := rl.MeasureTextEx(editor.font, char_cstring, editor.font_size, 0)[0]
 		if char == '\n' {
-			char_w = rl.MeasureTextEx(style.font, " ", 40, 0)[0]
+			char_w = rl.MeasureTextEx(editor.font, " ", editor.font_size, 0)[0]
 		} else if char == '\t' {
-			char_w = rl.MeasureTextEx(style.font, "    ", 40, 0)[0]
+			char_w = rl.MeasureTextEx(editor.font, "    ", editor.font_size, 0)[0]
 		}
 
 		// draw selections
 		for &cursor in editor.cursors {			
 			cursor_range := cursor_to_range(&cursor)
 			if cursor_range.start <= char_index && char_index < cursor_range.end {
-				rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, style.select_color)
+				rl.DrawRectangleRec({ char_x, char_y, char_w, editor.font_size }, style.select_color)
 			} 
 		}
 
 		// draw highlighted ranges
 		for range in editor.highlighted_ranges {
 			if range.start <= char_index && char_index < range.end {
-				rl.DrawRectangleRec({ char_x, char_y, char_w, 40 }, style.select_color)
+				rl.DrawRectangleRec({ char_x, char_y, char_w, editor.font_size }, style.select_color)
 			}
 		}
 
 		// draw text
-		rl.DrawTextEx(style.font, char_cstring, { char_x, char_y }, 40, 0, char_color)
+		rl.DrawTextEx(editor.font, char_cstring, { char_x, char_y }, editor.font_size, 0, char_color)
 		
 		if char == '\n' {
 			char_x = start_x
-			char_y += 40
+			char_y += editor.font_size
 			line += 1
 			continue
 		}
@@ -515,8 +515,8 @@ draw :: proc(editor: ^Editor) {
 			if i == line_from_pos(editor, editor.cursors[0].head) {
 				number_color = style.text_color
 			}
-			pos := rl.Vector2 { lines_rect.x + 10, lines_rect.y + f32(i) * 40 + scroll_y^ }
-			rl.DrawTextEx(style.font, fmt.ctprint(i + 1), pos, 40, 0, number_color)
+			pos := rl.Vector2 { lines_rect.x + 10, lines_rect.y + f32(i) * editor.font_size + scroll_y^ }
+			rl.DrawTextEx(editor.font, fmt.ctprint(i + 1), pos, editor.font_size, 0, number_color)
 		}
 
 		shadow_rect := rl.Rectangle { 
@@ -534,17 +534,17 @@ draw :: proc(editor: ^Editor) {
 		for &cursor in editor.cursors {			
 			line := line_from_pos(editor, cursor.head)
 			cursor_x := code_rect.x + scroll_x^
-			cursor_y := code_rect.y + f32(line) * 40 + scroll_y^
+			cursor_y := code_rect.y + f32(line) * editor.font_size + scroll_y^
 			for i in buffer.line_ranges[line].start..<cursor.head {
 				char := rune(buffer.content[i])
 				char_cstring := fmt.ctprint(char)
-				char_w := rl.MeasureTextEx(style.font, char_cstring, 40, 0)[0]
+				char_w := rl.MeasureTextEx(editor.font, char_cstring, editor.font_size, 0)[0]
 				if char == '\t' {
-					char_w = rl.MeasureTextEx(style.font, "    ", 40, 0)[0]
+					char_w = rl.MeasureTextEx(editor.font, "    ", editor.font_size, 0)[0]
 				}
 				cursor_x += char_w
 			}
-			rl.DrawRectangleRec({ cursor_x, cursor_y, 2, 40 }, style.caret_color)
+			rl.DrawRectangleRec({ cursor_x, cursor_y, 2, editor.font_size }, style.caret_color)
 		}
 	}
 	rl.EndScissorMode()
@@ -745,4 +745,9 @@ merge_cursors :: proc(editor: ^Editor) {
 		}
 		ordered_remove(&editor.cursors, i)
 	}
+}
+
+set_font :: proc(editor: ^Editor, font: rl.Font, font_size: f32) {
+	editor.font = font
+	editor.font_size = font_size
 }

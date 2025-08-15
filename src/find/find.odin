@@ -15,6 +15,8 @@ Find :: struct {
 	matches: [dynamic]rg.Range,
 	match_index: int,
 	
+	font: rl.Font,
+	font_size: f32,
 	style: Style,
 	visible: bool,
 }
@@ -110,4 +112,10 @@ set_text :: proc(find: ^Find, text: string) {
 set_style :: proc(find: ^Find, style: Style) {
 	find.style = style
 	ed.set_style(&find.input, style.input)
+}
+
+set_font :: proc(find: ^Find, font: rl.Font, font_size: f32) {
+	find.font = font
+	find.font_size = font_size
+	ed.set_font(&find.input, font, font_size)
 }

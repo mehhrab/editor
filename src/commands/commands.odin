@@ -15,6 +15,8 @@ Commands :: struct {
 	items: [dynamic]string,
 	sorted_items: [dynamic]Command_Sorted,
 
+	font: rl.Font, 
+	font_size: f32,
 	style: Style,
 	visible: bool,
 	rect: rl.Rectangle,
@@ -30,7 +32,6 @@ Style :: struct {
 	input: ed.Style,
 	list: li.Style,
 }
-
 
 init :: proc(commands: ^Commands, style: ^Style, items: []string) {
 	commands.style = style^
@@ -143,11 +144,11 @@ draw :: proc(commands: ^Commands) {
 set_rect :: proc(commands: ^Commands, rect: rl.Rectangle) {
 	commands.rect = rect
 	commands.input.rect = rect
-	commands.input.rect.height = 40
+	commands.input.rect.height = commands.font_size
 
 	list_rect := rect
-	list_rect.y += 40	
-	list_rect.height -= 40
+	list_rect.y += commands.font_size
+	list_rect.height -= commands.font_size
 	li.set_rect(&commands.list, list_rect)	
 }
 
@@ -164,4 +165,11 @@ set_style :: proc(commands: ^Commands, style: Style) {
 	commands.style = style
 	ed.set_style(&commands.input, style.input)
 	li.set_style(&commands.list, style.list)
+}
+
+set_font :: proc(commands: ^Commands, font: rl.Font, font_size: f32) {
+	commands.font = font
+	commands.font_size = font_size
+	ed.set_font(&commands.input, font, font_size)
+	li.set_font(&commands.list, font, font_size)
 }
