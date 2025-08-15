@@ -33,8 +33,8 @@ main :: proc() {
 	app.init(&state, &config)
 	defer app.deinit(&state)
 	
-	for i in 1..<len(os.args) {
-		app.open_file(&state, os.args[i])
+	for arg in os.args[1:] {
+		app.open_file(&state, arg)
 	}
 
 	app.run(&state)
