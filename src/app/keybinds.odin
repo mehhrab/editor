@@ -241,9 +241,9 @@ editor_input :: proc(app: ^App, editor: ^ed.Editor) -> bool {
 	}
 	else if km.check(&app.keybinds.add_cursor_above) {
 		abovest_line := ed.line_from_pos(editor, editor.cursors[0].head)
-		for &cursor in editor.cursors {
+		for &cursor in editor.cursors[1:] {
 			line := ed.line_from_pos(editor, cursor.head)
-			if line <= abovest_line {
+			if line < abovest_line {
 				abovest_line = line
 			}
 		}
